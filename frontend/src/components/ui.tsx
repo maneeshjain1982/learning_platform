@@ -46,6 +46,7 @@ const SOURCE: Record<string, { label: string; cls: string }> = {
   udacity: { label: "Udacity", cls: "bg-cs-bg text-cs-fg" },
   github: { label: "GitHub", cls: "bg-[#EEF0F3] text-ink" },
   claude_academy: { label: "Claude Academy", cls: "bg-pp-bg text-pp-fg" },
+  web: { label: "Web", cls: "bg-[#EEF0F3] text-body" },
 };
 
 export function SourceBadge({ source, extra }: { source: string; extra?: string }) {

@@ -1,4 +1,4 @@
-"""Review Q&A writer: questions and answers for each lesson of a Claude Academy course.
+"""Review Q&A writer: questions and answers for each lesson of a Claude Academy course or Hindi Voice module.
 
 The course videos sit behind a sign-in, so answers are grounded in Anthropic's public documentation (found with
 web search). Every reference link is checked; dead ones are dropped.
@@ -25,7 +25,7 @@ class QAItem(BaseModel):
     question: str = Field(description="A review question that checks understanding, not trivia")
     answer_md: str = Field(description="Model answer in markdown, 60-180 words, concrete and correct")
     key_points: list[str] = Field(description="2-4 points a good answer must contain")
-    references: list[SourceLink] = Field(description="1-2 pages backing the answer: Anthropic docs, specs, repos")
+    references: list[SourceLink] = Field(description="1-2 pages backing the answer: official docs, papers, specs, repos")
 
 
 class QABatchOut(BaseModel):
@@ -40,6 +40,15 @@ SYSTEM = (
     "Answers must be accurate for the current product; never invent API names, flags or URLs."
 )
 
+HINDI_SYSTEM = (
+    "You write review questions for an engineer adding Hindi to a voice assistant's ASR and NLU (for example "
+    "Samsung Bixby). Use web search to check facts against primary sources: arXiv and ACL/Interspeech papers, "
+    "AI4Bharat, Hugging Face model and dataset cards, NVIDIA NeMo, ESPnet, k2, Kaldi and bixbydevelopers.com docs "
+    "(cite bixbydevelopers.com itself, never mirror sites). "
+    "Use Hindi (Devanagari) examples where they help. Prefer 'why', 'how would you test' and 'what goes wrong' "
+    "questions over definitions. Never invent numbers, model names or URLs."
+)
+
 
 def build_prompt(course: dict, lessons: list[tuple[int, str, str]], per_lesson: int) -> str:
     listing = "\n".join(f"{i}. [{section}] {title}" for i, section, title in lessons)
@@ -51,13 +60,13 @@ def build_prompt(course: dict, lessons: list[tuple[int, str, str]], per_lesson: 
     )
 
 
-async def write_course_qa(llm: LLMClient, course: dict, per_lesson: int) -> list[dict]:
+async def write_course_qa(llm: LLMClient, course: dict, per_lesson: int, system: str = SYSTEM) -> list[dict]:
     """Return Q&A dicts for every lesson of `course`, with checked references."""
     lessons = [(i, sec, t) for i, (sec, t) in enumerate((s, t) for s, ls in course["outline"] for t in ls)]
     chunks = [lessons[i:i + LESSONS_PER_CALL] for i in range(0, len(lessons), LESSONS_PER_CALL)]
 
     async def one(chunk):
-        out = await llm.ask_json(build_prompt(course, chunk, per_lesson), QABatchOut, system=SYSTEM,
+        out = await llm.ask_json(build_prompt(course, chunk, per_lesson), QABatchOut, system=system,
                                  model=config.LLM_MODEL, web=True, timeout=max(config.LLM_TIMEOUT, 600))
         valid = {i for i, _, _ in chunk}
         return [it for it in out.items if it.lesson_index in valid]

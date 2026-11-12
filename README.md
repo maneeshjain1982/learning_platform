@@ -88,6 +88,20 @@ The **Claude learning** tab lists Anthropic's free courses on [Claude Academy](h
 - **Review Q&A:** on each track course, **Review Q&A** opens questions for every lesson. The LLM writes them, checks facts against Anthropic's docs and links the sources. Reveal an answer, then mark it *Know it* or *Review again*. **Write new questions** replaces the set (your marks stay on questions that come back unchanged).
 - **New updates:** **Refresh** has the LLM search the web for recent Claude, Claude Code, MCP and agent news. Dead links are dropped.
 
+## Hindi Voice (ASR + NLU)
+
+The **Hindi Voice** tab covers adding Hindi (or any new language) to a voice assistant such as Bixby. Everything in it was researched and link-checked; arXiv IDs were checked against arXiv, and licences come from the model and dataset cards.
+
+- **Overview & skills:** the competencies needed, with the level each needs. Rate yourself to see your gaps.
+- **Courses & modules:** courses in order (foundations → ASR → NLU → Indic resources → Bixby docs), and 12 technical modules (speech basics, ASR models, Hindi text normalization, LM and biasing, on-device, intent/slot NLU, Hinglish and transliteration, entities, LLM NLU, data, testing, launch). Each module has **Review Q&A**, and **Add modules to My paths** turns them into a study path.
+- **Models & datasets:** the best open and commercial Hindi ASR models (with Hindi WER from the named source), NLU encoders, LLMs, tools, and speech/NLU datasets with licences.
+- **Research papers:** reading list grouped by topic.
+- **Launch playbook:** 10 phases with steps to tick off, outputs, owners and pitfalls.
+- **Testing:** ASR, NLU and end-to-end metrics, the slices to report, and test-set design.
+- **Data:** the variability matrix, how to get data, and how to generate it.
+- **Utterance generator:** enter an intent and slots; the LLM writes Devanagari, romanized and Hinglish utterances with slot labels. Export as CSV, JSONL or Bixby-style Aligned NL.
+- **What's new:** **Refresh** finds new Hindi models, datasets, papers and news.
+
 ## Career
 
 - **Certifications:** a researched list of Agentic AI and Generative AI certifications (Anthropic, Google Cloud, Microsoft, NVIDIA, AWS, Databricks, plus courses with certificates), grouped by level, with price, format and what each one tests. **Refresh** looks for new certifications and changes to these.

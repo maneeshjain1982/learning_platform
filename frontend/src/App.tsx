@@ -7,6 +7,7 @@ import { Icon } from "./components/ui";
 import Career from "./pages/Career";
 import ClaudeAcademy from "./pages/ClaudeAcademy";
 import Discover from "./pages/Discover";
+import HindiVoice from "./pages/HindiVoice";
 import Home from "./pages/Home";
 import LessonPage from "./pages/Lesson";
 import Links from "./pages/Links";
@@ -41,6 +42,7 @@ function Nav() {
           <NavLink to="/" end className={link}>Home</NavLink>
           <NavLink to="/paths" className={link}>My paths</NavLink>
           <NavLink to="/claude" className={link}>Claude learning</NavLink>
+          <NavLink to="/hindi-voice" className={link}>Hindi Voice</NavLink>
           <NavLink to="/career" className={link}>Career</NavLink>
           <NavLink to="/interview" className={link}>Interview prep</NavLink>
           <NavLink to="/links" className={link}>My links</NavLink>
@@ -78,6 +80,7 @@ export default function App() {
           <Route path="/lessons/:id" element={<LessonPage />} />
           <Route path="/claude" element={<ClaudeAcademy />} />
           <Route path="/career" element={<Career />} />
+          <Route path="/hindi-voice" element={<HindiVoice />} />
           <Route path="/links" element={<Links />} />
           <Route path="/interview" element={<InterviewList />} />
           <Route path="/interview/new" element={<InterviewConfigure />} />

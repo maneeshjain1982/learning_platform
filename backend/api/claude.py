@@ -12,8 +12,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import claude_academy as ca
+from .. import hindi_voice as hv
 from ..agents.base import attach, upsert_resource
-from ..agents.review import write_course_qa
+from ..agents.review import HINDI_SYSTEM, SYSTEM as CLAUDE_SYSTEM, write_course_qa
 from ..agents.updates import CATEGORIES, fetch_updates
 from ..db import get_db, session_scope
 from ..llm import get_llm
@@ -198,9 +199,9 @@ class QAStatusIn(BaseModel):
 
 
 def _qa_course(slug: str) -> dict:
-    c = ca.BY_SLUG.get(slug)
+    c = ca.BY_SLUG.get(slug) or hv.MODULE_BY_SLUG.get(slug)  # Hindi Voice modules share these endpoints
     if c is None:
-        raise HTTPException(404, f"No Claude Academy course '{slug}'")
+        raise HTTPException(404, f"No course or module '{slug}'")
     if not c["outline"]:
         raise HTTPException(400, "This course has no lesson list yet, so there's nothing to write questions for.")
     return c
@@ -229,7 +230,8 @@ async def generate_qa(slug: str, body: QAGenerateIn | None = None, db: Session =
     body = body or QAGenerateIn()
 
     async def work(_prev: dict) -> dict:
-        items = await write_course_qa(get_llm(), c, body.per_lesson)
+        system = HINDI_SYSTEM if slug in hv.MODULE_BY_SLUG else CLAUDE_SYSTEM
+        items = await write_course_qa(get_llm(), c, body.per_lesson, system)
         with session_scope() as s:
             # Keep your "know it / review again" marks for questions that come back word for word.
             marks = {q.question: q.status for q in s.scalars(select(AcademyQA).where(AcademyQA.course_slug == slug))}

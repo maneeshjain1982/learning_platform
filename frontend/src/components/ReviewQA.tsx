@@ -12,7 +12,8 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 /** Review questions for every lesson of one course: reveal the answer, then mark it. */
-export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCount: number }) {
+export default function ReviewQA({ slug, lessonCount, parentKey = "academy", sourceHint = "Anthropic's docs", unit = "lesson" }:
+  { slug: string; lessonCount: number; parentKey?: string; sourceHint?: string; unit?: string }) {
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["course-qa", slug], queryFn: () => api.courseQA(slug),
@@ -32,7 +33,7 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
   const status = d?.job.status;
   const prev = useRef(status);
   useEffect(() => {  // refresh the course card's "x of y known" once a run finishes
-    if (prev.current === "running" && status !== "running") qc.invalidateQueries({ queryKey: ["academy"] });
+    if (prev.current === "running" && status !== "running") qc.invalidateQueries({ queryKey: [parentKey] });
     prev.current = status;
   }, [status, qc]);
 
@@ -44,7 +45,7 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
   const lessonsWithQA = [...new Set(items.map((i) => i.lesson_idx))];
 
   const onGenerate = () => {
-    if (items.length && !confirm("Write a new set of questions for this course? Your marks are kept only for questions that come back unchanged.")) return;
+    if (items.length && !confirm("Write a new set of questions? Your marks are kept only for questions that come back unchanged.")) return;
     gen.mutate();
   };
 
@@ -54,7 +55,7 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
         <h4 className="font-semibold flex-1 min-w-[200px]">
           Review Q&A {items.length > 0 && <span className="text-muted font-normal text-sm">· {known} of {items.length} known</span>}
         </h4>
-        <label htmlFor={`pl-${slug}`} className="text-sm">Questions per lesson</label>
+        <label htmlFor={`pl-${slug}`} className="text-sm">Questions per {unit}</label>
         <select id={`pl-${slug}`} className="input w-auto py-1.5" value={perLesson} disabled={running}
           onChange={(e) => setPerLesson(Number(e.target.value))}>
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -73,7 +74,7 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
       )}
       {d?.job.status === "failed" && d.job.error && <ErrorBox error={`Couldn't write the questions: ${d.job.error}`} onRetry={() => gen.mutate()} />}
       {d && !items.length && !running && d.job.status !== "failed" && (
-        <p className="text-sm text-muted">No questions yet. The LLM writes them for each lesson, checks the facts against Anthropic's docs, and links the sources.</p>
+        <p className="text-sm text-muted">No questions yet. The LLM writes them for each {unit}, checks the facts against {sourceHint}, and links the sources.</p>
       )}
 
       {items.length > 0 && (
@@ -87,10 +88,10 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
                 </button>
               ))}
             </div>
-            <label htmlFor={`ls-${slug}`} className="sr-only">Lesson</label>
+            <label htmlFor={`ls-${slug}`} className="sr-only">{unit}</label>
             <select id={`ls-${slug}`} className="input w-auto py-1.5 max-w-[280px]" value={lesson}
               onChange={(e) => setLesson(e.target.value === "all" ? "all" : Number(e.target.value))}>
-              <option value="all">All lessons</option>
+              <option value="all">All {unit}s</option>
               {lessonsWithQA.map((i) => <option key={i} value={i}>{i + 1}. {d!.lessons[i]}</option>)}
             </select>
             <button type="button" className="text-sm text-accent font-semibold min-h-[36px]" onClick={() => setOpenAll(!openAll)}>
@@ -103,8 +104,8 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
               const showHeader = n === 0 || shown[n - 1].lesson_idx !== i.lesson_idx;
               return (
                 <li key={i.id} className="flex flex-col gap-2">
-                  {showHeader && <p className="text-xs font-semibold text-muted uppercase tracking-wide mt-2">Lesson {i.lesson_idx + 1}: {i.lesson_title}</p>}
-                  <QACard i={i} slug={slug} forceOpen={openAll} />
+                  {showHeader && <p className="text-xs font-semibold text-muted uppercase tracking-wide mt-2">{unit === "topic" ? "Topic" : "Lesson"} {i.lesson_idx + 1}: {i.lesson_title}</p>}
+                  <QACard i={i} slug={slug} forceOpen={openAll} parentKey={parentKey} />
                 </li>
               );
             })}
@@ -115,13 +116,13 @@ export default function ReviewQA({ slug, lessonCount }: { slug: string; lessonCo
   );
 }
 
-function QACard({ i, slug, forceOpen }: { i: QAItem; slug: string; forceOpen: boolean }) {
+function QACard({ i, slug, forceOpen, parentKey }: { i: QAItem; slug: string; forceOpen: boolean; parentKey: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const isOpen = open || forceOpen;
   const mark = useMutation({
     mutationFn: (s: QAStatus) => api.setQAStatus(i.id, s),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["course-qa", slug] }); qc.invalidateQueries({ queryKey: ["academy"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["course-qa", slug] }); qc.invalidateQueries({ queryKey: [parentKey] }); },
   });
   const tone = i.status === "known" ? "border-ok/40 bg-ok-soft/40" : i.status === "review" ? "border-[#F2C77B] bg-pp-bg/40" : "border-line";
   return (

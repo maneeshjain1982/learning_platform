@@ -144,6 +144,38 @@ export interface AIUpdates {
   dropped: number; days: number; started_at: string | null; fetched_at: string | null; categories: string[];
 }
 
+// Hindi Voice (ASR + NLU)
+export interface HVSkill { name: string; need: number; why: string; level: number }
+export interface HVCourse { id: string; title: string; provider: string; url: string; phase: string; kind: string; level: string; cost: string; covers: string; top_pick: boolean; status: CourseStatus }
+export interface HVModule {
+  slug: string; side: string; title: string; summary: string; url: string; refs: string[]; lessons: number;
+  outline: { title: string; lessons: string[] }[]; qa: { total: number; known: number; review: number };
+  path_progress: { done: number; total: number } | null;
+}
+export interface HVModel { name: string; org: string; kind: string; url: string; paper: string; licence: string; size: string; on_device: string; result: string; notes: string; top_pick: boolean }
+export interface HVDataset { name: string; kind: string; url: string; paper: string; licence: string; size: string; what: string; use: string }
+export interface HVPaper { id: string; title: string; year: number; topic: string; url: string; why: string; top_pick: boolean }
+export interface HVPhase { id: string; title: string; goal: string; steps: string[]; outputs: string[]; owners: string; pitfalls: string[] }
+export interface HVTesting { id: string; title: string; metrics: [string, string, string][]; slices: string[] }
+export interface HVVariability { dimension: string; values: string[]; why: string; how: string }
+export interface HVSourcing { method: string; how: string; pros: string; cons: string }
+export interface HVGeneration { name: string; for: string; how: string; caution: string; tool: string }
+type IdTitle = { id: string; title: string };
+export interface HindiVoice {
+  checked_on: string; competencies: { id: string; title: string; skills: HVSkill[] }[];
+  phases: (IdTitle & { summary: string })[]; courses: HVCourse[]; sides: IdTitle[]; modules: HVModule[];
+  model_kinds: IdTitle[]; models: HVModel[]; dataset_kinds: IdTitle[]; datasets: HVDataset[];
+  paper_topics: IdTitle[]; papers: HVPaper[]; playbook: HVPhase[]; steps_done: string[];
+  testing: HVTesting[]; test_sizing: string[]; variability: HVVariability[]; sourcing: HVSourcing[];
+  generation: HVGeneration[]; platform_notes: string[]; path_id: number | null;
+}
+export interface HVFind { kind: string; title: string; org: string; date: string; summary: string; why_it_matters: string; result: string; licence: string; url: string; verified: boolean; is_new?: boolean }
+export interface HVResearch extends JobState { summary: string; items: HVFind[]; dropped: number; months: number }
+export type UtterStyle = "devanagari" | "romanized" | "hinglish";
+export interface UtterParams { intent: string; description: string; slots: { name: string; examples: string }[]; count: number; styles: UtterStyle[] }
+export interface Utterance { text: string; style: UtterStyle; tone: string; slots: { name: string; value: string }[]; annotated: string }
+export interface Utterances extends JobState { items: Utterance[]; dropped_slots: number; params: UtterParams | null }
+
 export type Direction = "up" | "down";
 
 export interface Step { agent: string; status: string; summary: string; chips: string[] }
@@ -308,6 +340,16 @@ export const api = {
   jobs: () => get<Jobs>("/api/career/jobs"),
   refreshJobs: (b: JobsParams) => post<Jobs>("/api/career/jobs/refresh", b),
   academyPath: () => post<{ path_id: number; created: boolean }>("/api/claude-academy/path"),
+
+  // Hindi Voice
+  hindiVoice: () => get<HindiVoice>("/api/hindi-voice"),
+  setHVState: (kind: "skill" | "course" | "step", key: string, value: number | string | boolean) =>
+    req<Ok>("PUT", "/api/hindi-voice/state", { kind, key, value }),
+  hindiVoicePath: () => post<{ path_id: number; created: boolean }>("/api/hindi-voice/path"),
+  hvResearch: () => get<HVResearch>("/api/hindi-voice/research"),
+  refreshHVResearch: (months: number) => post<HVResearch>("/api/hindi-voice/research/refresh", { months }),
+  utterances: () => get<Utterances>("/api/hindi-voice/utterances"),
+  generateUtterances: (b: UtterParams) => post<Utterances>("/api/hindi-voice/utterances/generate", b),
 
   // Interview companion
   interviews: () => get<InterviewSummary[]>("/api/interviews"),
