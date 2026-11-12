@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from . import config
-from .api import router
+from .api import bgjobs, router
 from .api.common import spawn
 from .db import init_db, session_scope
 from .models import AgentRun, InterviewPrep, LearningPath, Lesson, Module, utcnow
@@ -41,6 +41,7 @@ def _recover_interrupted_work() -> None:
             p.status = "ready" if p.skills else "failed"
         for path in db.scalars(select(LearningPath).where(LearningPath.status == "building")):
             path.status = "ready" if path.modules else "failed"
+        bgjobs.recover_interrupted(db)
 
 
 @asynccontextmanager

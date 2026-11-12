@@ -98,6 +98,37 @@ export interface AcademyCourse {
   quizzes: number; badge: boolean; level: string; summary: string; why: string; prereqs: string; url: string;
   outline: { title: string; lessons: string[] }[]; status: CourseStatus;
   path_progress: { done: number; total: number; module_id: number } | null;
+  qa: { total: number; known: number; review: number };
+}
+export type QAStatus = "new" | "review" | "known";
+export interface JobState { status: "idle" | "running" | "ready" | "failed"; error: string | null; started_at: string | null; fetched_at: string | null }
+export interface QAItem {
+  id: number; lesson_idx: number; lesson_title: string; question: string; answer_md: string; key_points: string[];
+  references: { title: string; url: string; verified: boolean }[]; status: QAStatus;
+}
+export interface CourseQA { slug: string; title: string; lessons: string[]; items: QAItem[]; job: JobState }
+
+export interface Cert {
+  name: string; issuer: string; tier: string; url: string; code: string; kind: string; price: string; duration: string;
+  format: string; validity: string; access: string; focus: string; fit: string; notes: string; top_pick: boolean;
+}
+export interface CertFind {
+  name: string; issuer: string; code: string; tier: string; change: "new" | "updated"; what_changed: string;
+  price: string; format: string; focus: string; fit: string; url: string; verified: boolean;
+}
+export interface Certifications {
+  checked_on: string; tiers: { id: string; title: string; summary: string }[]; certs: Cert[];
+  refresh: JobState & { summary: string; items: CertFind[]; dropped: number };
+}
+export interface JobPosting {
+  title: string; company: string; location: string; work_mode: string; seniority: string; posted: string; salary: string;
+  url: string; summary: string; responsibilities: string[]; must_have: string[]; nice_to_have: string[]; skill_tags?: string[]; why_hot: string;
+  verified: boolean;
+}
+export interface JobsParams { roles: string; location: string; count: number }
+export interface Jobs extends JobState {
+  market_summary: string; trends: string[]; jobs: JobPosting[]; top_skills: { skill: string; count: number }[];
+  dropped: number; params: JobsParams;
 }
 export interface Academy {
   base_url: string; checked_on: string; groups: { id: string; title: string; summary: string }[];
@@ -267,6 +298,15 @@ export const api = {
     req<{ status: CourseStatus }>("PUT", `/api/claude-academy/courses/${slug}/status`, { status }),
   aiUpdates: () => get<AIUpdates>("/api/claude-academy/updates"),
   refreshUpdates: (days: number) => post<AIUpdates>("/api/claude-academy/updates/refresh", { days }),
+  courseQA: (slug: string) => get<CourseQA>(`/api/claude-academy/qa/${slug}`),
+  generateQA: (slug: string, per_lesson: number) => post<CourseQA>(`/api/claude-academy/qa/${slug}/generate`, { per_lesson }),
+  setQAStatus: (id: number, status: QAStatus) => patch<QAItem>(`/api/claude-academy/qa/items/${id}`, { status }),
+
+  // Career
+  certifications: () => get<Certifications>("/api/career/certifications"),
+  refreshCertifications: () => post<Certifications>("/api/career/certifications/refresh"),
+  jobs: () => get<Jobs>("/api/career/jobs"),
+  refreshJobs: (b: JobsParams) => post<Jobs>("/api/career/jobs/refresh", b),
   academyPath: () => post<{ path_id: number; created: boolean }>("/api/claude-academy/path"),
 
   // Interview companion

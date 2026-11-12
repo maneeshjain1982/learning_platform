@@ -4,6 +4,7 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-ro
 import { api } from "./api";
 import { AskDrawer, AskFab, AskProvider } from "./components/AskLLM";
 import { Icon } from "./components/ui";
+import Career from "./pages/Career";
 import ClaudeAcademy from "./pages/ClaudeAcademy";
 import Discover from "./pages/Discover";
 import Home from "./pages/Home";
@@ -40,6 +41,7 @@ function Nav() {
           <NavLink to="/" end className={link}>Home</NavLink>
           <NavLink to="/paths" className={link}>My paths</NavLink>
           <NavLink to="/claude" className={link}>Claude learning</NavLink>
+          <NavLink to="/career" className={link}>Career</NavLink>
           <NavLink to="/interview" className={link}>Interview prep</NavLink>
           <NavLink to="/links" className={link}>My links</NavLink>
           <NavLink to="/discover" className={link}>Discover</NavLink>
@@ -75,6 +77,7 @@ export default function App() {
           <Route path="/paths/:id" element={<PathPage />} />
           <Route path="/lessons/:id" element={<LessonPage />} />
           <Route path="/claude" element={<ClaudeAcademy />} />
+          <Route path="/career" element={<Career />} />
           <Route path="/links" element={<Links />} />
           <Route path="/interview" element={<InterviewList />} />
           <Route path="/interview/new" element={<InterviewConfigure />} />

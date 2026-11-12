@@ -319,3 +319,19 @@ class PracticeAttempt(Base):
     better_answer_md: Mapped[str] = mapped_column(Text, default="")
     follow_up: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class AcademyQA(Base):
+    """Review question for one lesson of a Claude Academy course (written by the LLM, sources checked)."""
+    __tablename__ = "academy_qa"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_slug: Mapped[str] = mapped_column(String(120), index=True)
+    lesson_idx: Mapped[int]                       # position of the lesson in the course outline (0-based)
+    lesson_title: Mapped[str] = mapped_column(String(300))
+    position: Mapped[int] = mapped_column(default=0)
+    question: Mapped[str] = mapped_column(Text)
+    answer_md: Mapped[str] = mapped_column(Text)
+    key_points: Mapped[list[str]] = mapped_column(JSON, default=list)
+    references: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(10), default="new")  # new | review | known
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

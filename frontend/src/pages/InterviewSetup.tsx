@@ -1,7 +1,7 @@
 // Interview prep: list of companions + the Configure page (new or edit).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, type Bar, type InterviewConfig, type QType, type Seniority } from "../api";
 import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
 
@@ -90,7 +90,9 @@ export function InterviewConfigure() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const existing = useQuery({ queryKey: ["interview", editId], queryFn: () => api.interview(editId!), enabled: !!editId });
-  const [f, setF] = useState<InterviewConfig>(EMPTY);
+  const prefill = (useLocation().state as { prefill?: Partial<InterviewConfig> } | null)?.prefill;
+  // Arriving from a job on the Career tab fills in the role, company and JD.
+  const [f, setF] = useState<InterviewConfig>(() => (editId || !prefill ? EMPTY : { ...EMPTY, ...prefill }));
   const [replacePlan, setReplacePlan] = useState(true);
   const [replaceQuestions, setReplaceQuestions] = useState(false);
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,12 +13,14 @@ from sqlalchemy.orm import Session
 
 from .. import claude_academy as ca
 from ..agents.base import attach, upsert_resource
+from ..agents.review import write_course_qa
 from ..agents.updates import CATEGORIES, fetch_updates
 from ..db import get_db, session_scope
 from ..llm import get_llm
-from ..models import LearningPath, Lesson, Module, User, utcnow
+from ..models import AcademyQA, LearningPath, Lesson, Module, User
 from ..providers import Candidate
-from .common import USER_ID, iso, progress_map, spawn
+from . import bgjobs
+from .common import USER_ID, progress_map
 
 log = logging.getLogger("study.claude")
 
@@ -63,8 +64,16 @@ def catalog(db: Session = Depends(get_db)):
     statuses = _statuses(db)
     path = _path(db)
     in_path = _path_lesson_progress(db, path)
+    qa: dict[str, dict] = {}
+    for slug, status, n in db.execute(select(AcademyQA.course_slug, AcademyQA.status, func.count())
+                                      .group_by(AcademyQA.course_slug, AcademyQA.status)):
+        d = qa.setdefault(slug, {"total": 0, "known": 0, "review": 0})
+        d["total"] += n
+        if status in ("known", "review"):
+            d[status] += n
     courses = [{**c, "outline": [{"title": t, "lessons": ls} for t, ls in c["outline"]],
-                "status": statuses.get(c["slug"], "todo"), "path_progress": in_path.get(c["slug"])}
+                "status": statuses.get(c["slug"], "todo"), "path_progress": in_path.get(c["slug"]),
+                "qa": qa.get(c["slug"], {"total": 0, "known": 0, "review": 0})}
                for c in ca.COURSES]
     track_hours = sum(c["hours"] or 0 for c in ca.AGENT_TRACK)
     return {
@@ -131,66 +140,114 @@ def create_path(db: Session = Depends(get_db)):
 
 # ---------------------------------------------------------------- new updates (LLM + web search)
 
-UPDATES_KEY = "ai_updates"
-STALE_AFTER = timedelta(minutes=20)  # a refresh still "running" after this was cut off (e.g. server restart)
+UPDATES_KEY = "updates"
 
 
 class RefreshIn(BaseModel):
     days: int = Field(45, ge=7, le=180)
 
 
-def _read_updates(user: User) -> dict:
-    st = dict((user.settings or {}).get(UPDATES_KEY) or {"status": "idle", "items": []})
-    if st.get("status") == "running" and st.get("started_at"):
-        if utcnow() - datetime.fromisoformat(st["started_at"]) > STALE_AFTER:
-            st.update(status="failed", error="The refresh was interrupted. Try again.")
-    return st
-
-
-def _write_updates(db: Session, **changes) -> dict:
+def _updates_state(db: Session) -> dict:
     user = db.get(User, USER_ID)
-    settings = dict(user.settings or {})
-    st = {**_read_updates(user), **changes}
-    settings[UPDATES_KEY] = st
-    user.settings = settings
+    st = bgjobs.read(user, UPDATES_KEY)
+    legacy = (user.settings or {}).get("ai_updates")  # results saved before the shared job store existed
+    if st.get("status") == "idle" and legacy and legacy.get("items"):
+        st = {**legacy, "status": "ready"}
     return st
 
 
 def _updates_out(st: dict) -> dict:
-    fmt = lambda k: iso(datetime.fromisoformat(st[k])) if st.get(k) else None  # noqa: E731
-    return {"status": st.get("status", "idle"), "error": st.get("error"), "headline": st.get("headline", ""),
-            "items": st.get("items", []), "dropped": st.get("dropped", 0), "days": st.get("days", 45),
-            "started_at": fmt("started_at"), "fetched_at": fmt("fetched_at"), "categories": CATEGORIES}
-
-
-async def _run_refresh(days: int) -> None:
-    with session_scope() as db:
-        previous = {i["url"] for i in _read_updates(db.get(User, USER_ID)).get("items", [])}
-    try:
-        res = await fetch_updates(get_llm(), [c["title"] for c in ca.COURSES], days=days)
-    except Exception as exc:  # LLM unavailable, timeout, bad output
-        log.warning("Updates refresh failed: %s", exc)
-        with session_scope() as db:
-            _write_updates(db, status="failed", error=str(exc)[:500])
-        return
-    items = [i | {"is_new": bool(previous) and i["url"] not in previous} for i in res["items"]]
-    with session_scope() as db:
-        _write_updates(db, status="ready", error=None, headline=res["headline"], items=items,
-                       dropped=res["dropped"], fetched_at=utcnow().isoformat())
+    out = bgjobs.public(st)
+    return {"status": out["status"], "error": out["error"], "headline": st.get("headline", ""),
+            "items": st.get("items", []), "dropped": st.get("dropped", 0),
+            "days": (st.get("params") or {}).get("days", st.get("days", 45)),
+            "started_at": out["started_at"], "fetched_at": out["fetched_at"], "categories": CATEGORIES}
 
 
 @router.get("/updates")
 def get_updates(db: Session = Depends(get_db)):
-    return _updates_out(_read_updates(db.get(User, USER_ID)))
+    return _updates_out(_updates_state(db))
 
 
 @router.post("/updates/refresh")
 async def refresh_updates(body: RefreshIn | None = None, db: Session = Depends(get_db)):
     """Start a web search for the latest news. Keeps showing the last results until the new ones arrive."""
     body = body or RefreshIn()
-    if _read_updates(db.get(User, USER_ID)).get("status") == "running":
-        return get_updates(db)
-    st = _write_updates(db, status="running", error=None, days=body.days, started_at=utcnow().isoformat())
+    previous_urls = {i["url"] for i in _updates_state(db).get("items", [])}
+
+    async def work(_prev: dict) -> dict:
+        res = await fetch_updates(get_llm(), [c["title"] for c in ca.COURSES], days=body.days)
+        items = [i | {"is_new": bool(previous_urls) and i["url"] not in previous_urls} for i in res["items"]]
+        return {"headline": res["headline"], "items": items, "dropped": res["dropped"]}
+
+    bgjobs.start(db, UPDATES_KEY, work, days=body.days)
+    return _updates_out(_updates_state(db))
+
+
+# ---------------------------------------------------------------- review Q&A per lesson
+
+QAStatus = Literal["new", "review", "known"]
+
+
+class QAGenerateIn(BaseModel):
+    per_lesson: int = Field(2, ge=1, le=4)
+
+
+class QAStatusIn(BaseModel):
+    status: QAStatus
+
+
+def _qa_course(slug: str) -> dict:
+    c = ca.BY_SLUG.get(slug)
+    if c is None:
+        raise HTTPException(404, f"No Claude Academy course '{slug}'")
+    if not c["outline"]:
+        raise HTTPException(400, "This course has no lesson list yet, so there's nothing to write questions for.")
+    return c
+
+
+def _qa_item(q: AcademyQA) -> dict:
+    return {"id": q.id, "lesson_idx": q.lesson_idx, "lesson_title": q.lesson_title, "question": q.question,
+            "answer_md": q.answer_md, "key_points": q.key_points, "references": q.references, "status": q.status}
+
+
+@router.get("/qa/{slug}")
+def get_qa(slug: str, db: Session = Depends(get_db)):
+    c = _qa_course(slug)
+    rows = db.scalars(select(AcademyQA).where(AcademyQA.course_slug == slug)
+                      .order_by(AcademyQA.lesson_idx, AcademyQA.position, AcademyQA.id))
+    st = bgjobs.public(bgjobs.read(db.get(User, USER_ID), f"qa:{slug}"))
+    lessons = [t for _, ls in c["outline"] for t in ls]
+    return {"slug": slug, "title": c["title"], "lessons": lessons, "items": [_qa_item(q) for q in rows],
+            "job": {k: st.get(k) for k in ("status", "error", "started_at", "fetched_at")}}
+
+
+@router.post("/qa/{slug}/generate")
+async def generate_qa(slug: str, body: QAGenerateIn | None = None, db: Session = Depends(get_db)):
+    """Write (or rewrite) review Q&A for every lesson of a course in the background."""
+    c = _qa_course(slug)
+    body = body or QAGenerateIn()
+
+    async def work(_prev: dict) -> dict:
+        items = await write_course_qa(get_llm(), c, body.per_lesson)
+        with session_scope() as s:
+            # Keep your "know it / review again" marks for questions that come back word for word.
+            marks = {q.question: q.status for q in s.scalars(select(AcademyQA).where(AcademyQA.course_slug == slug))}
+            for q in s.scalars(select(AcademyQA).where(AcademyQA.course_slug == slug)):
+                s.delete(q)
+            for it in items:
+                s.add(AcademyQA(course_slug=slug, status=marks.get(it["question"], "new"), **it))
+        return {"count": len(items)}
+
+    bgjobs.start(db, f"qa:{slug}", work, per_lesson=body.per_lesson)
+    return get_qa(slug, db)
+
+
+@router.patch("/qa/items/{qa_id}")
+def set_qa_status(qa_id: int, body: QAStatusIn, db: Session = Depends(get_db)):
+    q = db.get(AcademyQA, qa_id)
+    if q is None:
+        raise HTTPException(404, "Question not found")
+    q.status = body.status
     db.commit()
-    spawn(_run_refresh(body.days))
-    return _updates_out(st)
+    return _qa_item(q)

@@ -80,6 +80,21 @@ On the companion page:
 
 **Readiness** = 50% skill ratings + 30% mock scores + 20% prep plan done. Use **Edit configuration → Save and rebuild** after pasting a new job description.
 
+## Claude learning
+
+The **Claude learning** tab lists Anthropic's free courses on [Claude Academy](https://academy.claude.com).
+
+- **Agent builder track:** 11 courses in the order to take them, with lesson lists, a status for each course, and **Add track to My paths** to study them lesson by lesson.
+- **Review Q&A:** on each track course, **Review Q&A** opens questions for every lesson. The LLM writes them, checks facts against Anthropic's docs and links the sources. Reveal an answer, then mark it *Know it* or *Review again*. **Write new questions** replaces the set (your marks stay on questions that come back unchanged).
+- **New updates:** **Refresh** has the LLM search the web for recent Claude, Claude Code, MCP and agent news. Dead links are dropped.
+
+## Career
+
+- **Certifications:** a researched list of Agentic AI and Generative AI certifications (Anthropic, Google Cloud, Microsoft, NVIDIA, AWS, Databricks, plus courses with certificates), grouped by level, with price, format and what each one tests. **Refresh** looks for new certifications and changes to these.
+- **Hot jobs:** set the roles and location, then **Find jobs**. The LLM finds open postings from the last 30 days, breaks down each job description, and lists the skills asked for most. **Prepare for this interview** opens Interview prep with the role, company and JD filled in.
+
+All LLM research runs in the background; you can leave the page and come back.
+
 ## Customize your home page
 
 - **My courses & links**: on Home, a path page, or **My links**, click **Add course or link** and paste any address (a Udemy or Coursera course, a YouTube playlist, docs…). Leave the title blank to use the page's own title. A link can be general or tied to one path, and can be hidden from Home.

@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type Academy, type AcademyCourse, type CourseStatus } from "../api";
+import { useState } from "react";
 import AIUpdates from "../components/AIUpdates";
+import ReviewQA from "../components/ReviewQA";
 import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
 
 const STATUS: { value: CourseStatus; label: string }[] = [
@@ -124,6 +126,7 @@ function CourseCard({ c, pathId, compact = false }: { c: AcademyCourse; pathId: 
   const facts = [c.level, h, `${c.lessons} lessons`, c.quizzes ? `${c.quizzes} quiz${c.quizzes > 1 ? "zes" : ""}` : null]
     .filter(Boolean) as string[];
   const done = c.status === "done";
+  const [showQA, setShowQA] = useState(false);
 
   return (
     <article className={`${compact ? "border border-line rounded-xl" : "card"} p-5 flex flex-col gap-3 ${done ? "bg-ok-soft/40" : ""}`}>
@@ -183,12 +186,18 @@ function CourseCard({ c, pathId, compact = false }: { c: AcademyCourse; pathId: 
             </div>
           </details>
         )}
+        {!compact && c.outline.length > 0 && (
+          <button type="button" className="btn-outline btn-sm" aria-expanded={showQA} onClick={() => setShowQA(!showQA)}>
+            <Icon.chat size={15} /> {showQA ? "Hide review Q&A" : c.qa.total ? `Review Q&A · ${c.qa.known}/${c.qa.total} known` : "Review Q&A"}
+          </button>
+        )}
         {pathId && c.path_progress && (
           <Link to={`/paths/${pathId}#module-${c.path_progress.module_id}`} className="text-sm text-accent font-semibold">
             {c.path_progress.done} of {c.path_progress.total} lessons ticked off in your path
           </Link>
         )}
       </div>
+      {showQA && <ReviewQA slug={c.slug} lessonCount={c.outline.reduce((n, s) => n + s.lessons.length, 0)} />}
     </article>
   );
 }
