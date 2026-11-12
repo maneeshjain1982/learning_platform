@@ -92,6 +92,27 @@ export interface PathInput {
   title: string; summary: string; level: string; hours_per_week: number; weeks: number;
   show_on_home?: boolean; modules?: string[];
 }
+export type CourseStatus = "todo" | "doing" | "done";
+export interface AcademyCourse {
+  slug: string; title: string; group: string; order: number | null; hours: number | null; lessons: number;
+  quizzes: number; badge: boolean; level: string; summary: string; why: string; prereqs: string; url: string;
+  outline: { title: string; lessons: string[] }[]; status: CourseStatus;
+  path_progress: { done: number; total: number; module_id: number } | null;
+}
+export interface Academy {
+  base_url: string; checked_on: string; groups: { id: string; title: string; summary: string }[];
+  courses: AcademyCourse[]; track: { hours: number; courses: number; lessons: number }; path_id: number | null;
+}
+
+export interface AIUpdate {
+  title: string; date: string; category: string; summary: string; why_it_matters: string; url: string;
+  new_course: boolean; verified: boolean; is_new: boolean;
+}
+export interface AIUpdates {
+  status: "idle" | "running" | "ready" | "failed"; error: string | null; headline: string; items: AIUpdate[];
+  dropped: number; days: number; started_at: string | null; fetched_at: string | null; categories: string[];
+}
+
 export type Direction = "up" | "down";
 
 export interface Step { agent: string; status: string; summary: string; chips: string[] }
@@ -239,6 +260,14 @@ export const api = {
   updateLink: (id: number, b: Partial<LinkInput> & { clear_path?: boolean }) => patch<MyLink>(`/api/links/${id}`, b),
   moveLink: (id: number, direction: Direction) => post<Ok>(`/api/links/${id}/move`, { direction }),
   deleteLink: (id: number) => del(`/api/links/${id}`),
+
+  // Claude Academy
+  academy: () => get<Academy>("/api/claude-academy"),
+  setCourseStatus: (slug: string, status: CourseStatus) =>
+    req<{ status: CourseStatus }>("PUT", `/api/claude-academy/courses/${slug}/status`, { status }),
+  aiUpdates: () => get<AIUpdates>("/api/claude-academy/updates"),
+  refreshUpdates: (days: number) => post<AIUpdates>("/api/claude-academy/updates/refresh", { days }),
+  academyPath: () => post<{ path_id: number; created: boolean }>("/api/claude-academy/path"),
 
   // Interview companion
   interviews: () => get<InterviewSummary[]>("/api/interviews"),

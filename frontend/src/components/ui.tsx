@@ -45,6 +45,7 @@ const SOURCE: Record<string, { label: string; cls: string }> = {
   deeplearning_ai: { label: "DeepLearning.AI", cls: "bg-cs-bg text-cs-fg" },
   udacity: { label: "Udacity", cls: "bg-cs-bg text-cs-fg" },
   github: { label: "GitHub", cls: "bg-[#EEF0F3] text-ink" },
+  claude_academy: { label: "Claude Academy", cls: "bg-pp-bg text-pp-fg" },
 };
 
 export function SourceBadge({ source, extra }: { source: string; extra?: string }) {
