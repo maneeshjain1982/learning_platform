@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-ground text-ink font-sans antialiased; font-size: 15px; line-height: 1.5; }
+  h1, h2, h3 { @apply text-ink; }
+  :focus-visible { outline: 2px solid #2453D6; outline-offset: 2px; }
+}
+
+@layer components {
+  .card { @apply bg-white border border-line rounded-2xl; }
+  .btn { @apply inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-[10px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-accent text-white hover:bg-accent-dark; }
+  .btn-dark { @apply btn bg-ink text-white hover:bg-black; }
+  .btn-ok { @apply btn bg-ok text-white hover:bg-ok-dark; }
+  .btn-outline { @apply btn border border-line2 bg-white text-ink hover:bg-ground; }
+  .btn-sm { @apply min-h-[36px] px-3 text-sm; }
+  .chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold; }
+  .pill { @apply inline-flex items-center min-h-[44px] px-4 rounded-full border font-semibold cursor-pointer; }
+  .h-display { @apply font-display font-semibold tracking-tight; }
+  .input { @apply w-full border border-[#C9CED8] rounded-[10px] px-3.5 py-2.5 bg-white text-ink placeholder:text-muted focus:border-accent focus:outline-none; }
+  .label { @apply font-semibold; }
+}
+
+.prose pre { background: #14171F; }
+.prose code::before, .prose code::after { content: none; }
+.prose :not(pre) > code { background: #F1F3F6; padding: 1px 5px; border-radius: 4px; font-weight: 500; }
+
+@keyframes dot { 0%, 80%, 100% { opacity: .25 } 40% { opacity: 1 } }
+.dot { width: 6px; height: 6px; border-radius: 9999px; background: #2453D6; animation: dot 1.2s infinite ease-in-out; }
+.dot:nth-child(2) { animation-delay: .15s } .dot:nth-child(3) { animation-delay: .3s }
