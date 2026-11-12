@@ -815,3 +815,58 @@ PLATFORM_NOTES = [
     "Public sources disagree on whether Bixby supports Hindi in every market today; this tab covers adding or "
     "improving any locale, based on public documentation only.",
 ]
+
+# ------------------------------------------------------------------ language settings used by the shared voice engine
+
+CODE = "hi"
+NAME = "Hindi"
+TITLE = "Hindi Voice: ASR + NLU"
+INTRO = ("What it takes to add Hindi to a voice assistant such as Bixby: the skills, courses and technical modules, "
+         "the best Hindi models, datasets and papers, the launch process, how to test ASR and NLU, and how to get "
+         "and generate the data.")
+SETTINGS_KEY = "hindi_voice"   # names kept from the first version so saved progress and results stay
+JOB_PREFIX = "hv"
+SLUG_PREFIX = "hv-"
+QA_SOURCES = "papers, model cards and official docs"
+
+QA_SYSTEM = (
+    "You write review questions for an engineer adding Hindi to a voice assistant's ASR and NLU (for example "
+    "Samsung Bixby). Use web search to check facts against primary sources: arXiv and ACL/Interspeech papers, "
+    "AI4Bharat, Hugging Face model and dataset cards, NVIDIA NeMo, ESPnet, k2, Kaldi and bixbydevelopers.com docs "
+    "(cite bixbydevelopers.com itself, never mirror sites). Use Hindi (Devanagari) examples where they help. Prefer "
+    "'why', 'how would you test' and 'what goes wrong' questions over definitions. Never invent numbers, model "
+    "names or URLs."
+)
+
+RESEARCH_SYSTEM = (
+    "You track Hindi and Indic speech recognition (ASR) and language understanding (NLU) for engineers adding Hindi "
+    "to a voice assistant. Use web search; open the real pages (Hugging Face, GitHub, arXiv, ACL Anthology, "
+    "Interspeech, vendor docs) and report only what you verified there. Never invent numbers, licences or URLs."
+)
+RESEARCH_PROMPT = (
+    "Find what is new in the last {months} months for Hindi ASR and NLU: new or updated open models (AI4Bharat, "
+    "Sarvam, Meta, Google, OpenAI, NVIDIA, Microsoft...), new Hindi/Indic datasets and benchmarks, important papers "
+    "(arXiv, ACL, Interspeech, ICASSP), tools, and notable industry news (voice assistants adding Indian languages, "
+    "Bhashini). Search each kind separately."
+)
+
+GEN_SYSTEM = (
+    "You are a native Hindi speaker and NLU data writer for a voice assistant in India. Write what real users "
+    "would say to their phone or TV, not textbook Hindi: short commands, colloquial words, everyday English loan "
+    "words, varied word order, polite (कृपया, आप) and casual (तुम, yaar) forms, and regional flavour from across "
+    "the Hindi belt. Devanagari must be correctly spelled Unicode. Romanized Hindi uses common chat spellings."
+)
+GEN_VARY = ("word order, verb forms (लगाओ / लगा दो / लगाइए / laga de), politeness, length (2-15 words), filler "
+            "words, and slot values")
+UTTER_STYLES = {
+    "devanagari": ("Devanagari", "Hindi in Devanagari, English loan words written in Devanagari (अलार्म, वाई-फ़ाई)"),
+    "romanized": ("Romanized", "Hindi written in Latin script the way people type it (kal subah 7 baje alarm laga do)"),
+    "hinglish": ("Hinglish", "Code-mixed Hindi-English in Devanagari with English words in Latin script, as ASR "
+                             "often outputs (कल सुबह 7 बजे का alarm लगाओ)"),
+}
+DEFAULT_UTTER = {
+    "intent": "SetAlarm", "description": "Set an alarm for a time, optionally on a date with a label",
+    "slots": [{"name": "time", "examples": "सुबह 6 बजे, साढ़े सात, 7:30"}, {"name": "date", "examples": "कल, परसों, सोमवार"},
+              {"name": "label", "examples": "gym, दवाई"}],
+    "count": 30, "styles": list(UTTER_STYLES),
+}

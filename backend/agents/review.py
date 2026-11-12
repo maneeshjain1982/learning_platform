@@ -1,4 +1,4 @@
-"""Review Q&A writer: questions and answers for each lesson of a Claude Academy course or Hindi Voice module.
+"""Review Q&A writer: questions and answers for each lesson of a Claude Academy course or Voice (ASR + NLU) module.
 
 The course videos sit behind a sign-in, so answers are grounded in Anthropic's public documentation (found with
 web search). Every reference link is checked; dead ones are dropped.
@@ -38,15 +38,6 @@ SYSTEM = (
     "docs.claude.com / platform.claude.com, anthropic.com/engineering, modelcontextprotocol.io, "
     "code.claude.com/docs, and github.com/anthropics. Prefer 'why' and 'when would you' questions over definitions. "
     "Answers must be accurate for the current product; never invent API names, flags or URLs."
-)
-
-HINDI_SYSTEM = (
-    "You write review questions for an engineer adding Hindi to a voice assistant's ASR and NLU (for example "
-    "Samsung Bixby). Use web search to check facts against primary sources: arXiv and ACL/Interspeech papers, "
-    "AI4Bharat, Hugging Face model and dataset cards, NVIDIA NeMo, ESPnet, k2, Kaldi and bixbydevelopers.com docs "
-    "(cite bixbydevelopers.com itself, never mirror sites). "
-    "Use Hindi (Devanagari) examples where they help. Prefer 'why', 'how would you test' and 'what goes wrong' "
-    "questions over definitions. Never invent numbers, model names or URLs."
 )
 
 

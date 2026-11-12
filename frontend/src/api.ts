@@ -144,7 +144,7 @@ export interface AIUpdates {
   dropped: number; days: number; started_at: string | null; fetched_at: string | null; categories: string[];
 }
 
-// Hindi Voice (ASR + NLU)
+// Voice (ASR + NLU), per language
 export interface HVSkill { name: string; need: number; why: string; level: number }
 export interface HVCourse { id: string; title: string; provider: string; url: string; phase: string; kind: string; level: string; cost: string; covers: string; top_pick: boolean; status: CourseStatus }
 export interface HVModule {
@@ -161,7 +161,11 @@ export interface HVVariability { dimension: string; values: string[]; why: strin
 export interface HVSourcing { method: string; how: string; pros: string; cons: string }
 export interface HVGeneration { name: string; for: string; how: string; caution: string; tool: string }
 type IdTitle = { id: string; title: string };
-export interface HindiVoice {
+export interface VoiceLang { code: string; name: string; title: string }
+export interface UtterStyleInfo { id: string; label: string; help: string }
+export interface VoiceData {
+  code: string; name: string; title: string; intro: string; qa_sources: string;
+  utter_styles: UtterStyleInfo[]; utter_default: UtterParams;
   checked_on: string; competencies: { id: string; title: string; skills: HVSkill[] }[];
   phases: (IdTitle & { summary: string })[]; courses: HVCourse[]; sides: IdTitle[]; modules: HVModule[];
   model_kinds: IdTitle[]; models: HVModel[]; dataset_kinds: IdTitle[]; datasets: HVDataset[];
@@ -171,7 +175,7 @@ export interface HindiVoice {
 }
 export interface HVFind { kind: string; title: string; org: string; date: string; summary: string; why_it_matters: string; result: string; licence: string; url: string; verified: boolean; is_new?: boolean }
 export interface HVResearch extends JobState { summary: string; items: HVFind[]; dropped: number; months: number }
-export type UtterStyle = "devanagari" | "romanized" | "hinglish";
+export type UtterStyle = string;
 export interface UtterParams { intent: string; description: string; slots: { name: string; examples: string }[]; count: number; styles: UtterStyle[] }
 export interface Utterance { text: string; style: UtterStyle; tone: string; slots: { name: string; value: string }[]; annotated: string }
 export interface Utterances extends JobState { items: Utterance[]; dropped_slots: number; params: UtterParams | null }
@@ -341,15 +345,16 @@ export const api = {
   refreshJobs: (b: JobsParams) => post<Jobs>("/api/career/jobs/refresh", b),
   academyPath: () => post<{ path_id: number; created: boolean }>("/api/claude-academy/path"),
 
-  // Hindi Voice
-  hindiVoice: () => get<HindiVoice>("/api/hindi-voice"),
-  setHVState: (kind: "skill" | "course" | "step", key: string, value: number | string | boolean) =>
-    req<Ok>("PUT", "/api/hindi-voice/state", { kind, key, value }),
-  hindiVoicePath: () => post<{ path_id: number; created: boolean }>("/api/hindi-voice/path"),
-  hvResearch: () => get<HVResearch>("/api/hindi-voice/research"),
-  refreshHVResearch: (months: number) => post<HVResearch>("/api/hindi-voice/research/refresh", { months }),
-  utterances: () => get<Utterances>("/api/hindi-voice/utterances"),
-  generateUtterances: (b: UtterParams) => post<Utterances>("/api/hindi-voice/utterances/generate", b),
+  // Voice (ASR + NLU)
+  voiceLangs: () => get<VoiceLang[]>("/api/voice"),
+  voice: (lang: string) => get<VoiceData>(`/api/voice/${lang}`),
+  setVoiceState: (lang: string, kind: "skill" | "course" | "step", key: string, value: number | string | boolean) =>
+    req<Ok>("PUT", `/api/voice/${lang}/state`, { kind, key, value }),
+  voicePath: (lang: string) => post<{ path_id: number; created: boolean }>(`/api/voice/${lang}/path`),
+  voiceResearch: (lang: string) => get<HVResearch>(`/api/voice/${lang}/research`),
+  refreshVoiceResearch: (lang: string, months: number) => post<HVResearch>(`/api/voice/${lang}/research/refresh`, { months }),
+  utterances: (lang: string) => get<Utterances>(`/api/voice/${lang}/utterances`),
+  generateUtterances: (lang: string, b: UtterParams) => post<Utterances>(`/api/voice/${lang}/utterances/generate`, b),
 
   // Interview companion
   interviews: () => get<InterviewSummary[]>("/api/interviews"),

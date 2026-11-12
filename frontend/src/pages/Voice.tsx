@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 import {
-  api, type CourseStatus, type HindiVoice as HV, type HVCourse, type HVModule, type UtterParams, type UtterStyle,
-  type Utterance,
+  api, type CourseStatus, type VoiceData as HV, type HVCourse, type HVModule, type UtterParams, type UtterStyle,
+  type UtterStyleInfo, type Utterance,
 } from "../api";
 import ReviewQA from "../components/ReviewQA";
 import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
@@ -22,7 +22,10 @@ const TABS = [
 type Tab = (typeof TABS)[number][0];
 
 const LEVELS = ["None", "Basic", "Working", "Strong", "Expert"];
-const QK = "hindi-voice";
+const QK = "voice";
+/** The language code of the page ("hi", "en"); every query and mutation is per language. */
+const LangCtx = createContext("hi");
+const useLang = () => useContext(LangCtx);
 
 function fmtDay(d: string) {
   const t = new Date(`${d}T00:00:00`);
@@ -55,16 +58,18 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
 
 function useSetState() {
   const qc = useQueryClient();
+  const lang = useLang();
+  const key = [QK, lang];
   return useMutation({
     mutationFn: (v: { kind: "skill" | "course" | "step"; key: string; value: number | string | boolean }) =>
-      api.setHVState(v.kind, v.key, v.value),
+      api.setVoiceState(lang, v.kind, v.key, v.value),
     onMutate: async (v) => {  // optimistic: the control updates immediately
-      await qc.cancelQueries({ queryKey: [QK] });
-      const prev = qc.getQueryData<HV>([QK]);
-      if (prev) qc.setQueryData<HV>([QK], apply(prev, v));
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<HV>(key);
+      if (prev) qc.setQueryData<HV>(key, apply(prev, v));
       return { prev };
     },
-    onError: (_e, _v, ctx) => ctx?.prev && qc.setQueryData([QK], ctx.prev),
+    onError: (_e, _v, ctx) => ctx?.prev && qc.setQueryData(key, ctx.prev),
   });
 }
 function apply(d: HV, v: { kind: string; key: string; value: number | string | boolean }): HV {
@@ -77,24 +82,30 @@ function apply(d: HV, v: { kind: string; key: string; value: number | string | b
   return { ...d, steps_done: [...steps] };
 }
 
-/** Everything needed to add Hindi to a voice assistant's ASR and NLU. */
-export default function HindiVoice() {
+/** Everything needed to add a language (Hindi, English…) to a voice assistant's ASR and NLU. */
+export default function Voice() {
+  const lang = useParams().lang ?? "hi";
   const [tab, setTab] = useState<Tab>(() => (TABS.find(([id]) => `#${id}` === location.hash)?.[0] ?? "overview"));
-  useEffect(() => { history.replaceState(null, "", `#${tab}`); }, [tab]);
-  const q = useQuery({ queryKey: [QK], queryFn: api.hindiVoice });
+  useEffect(() => { history.replaceState(null, "", `#${tab}`); }, [tab, lang]);
+  const langs = useQuery({ queryKey: ["voice-langs"], queryFn: api.voiceLangs, staleTime: Infinity });
+  const q = useQuery({ queryKey: [QK, lang], queryFn: () => api.voice(lang) });
+  const pill = ({ isActive }: { isActive: boolean }) =>
+    `min-h-[40px] px-4 inline-flex items-center rounded-full border font-semibold ${isActive ? "bg-accent text-white border-accent" : "bg-white border-line2 text-body hover:bg-ground"}`;
 
   return (
+    <LangCtx.Provider value={lang}>
     <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="h-display text-3xl">Hindi Voice: ASR + NLU</h1>
-        <p className="text-body max-w-[780px]">
-          What it takes to add Hindi to a voice assistant such as Bixby: the skills, courses and technical modules, the
-          best Hindi models, datasets and papers, the launch process, how to test ASR and NLU, and how to get and
-          generate the data.
-        </p>
+      <header className="flex flex-col gap-3">
+        <nav aria-label="Language" className="flex flex-wrap gap-2">
+          {(langs.data ?? [{ code: "hi", name: "Hindi", title: "" }, { code: "en", name: "English", title: "" }]).map((l) => (
+            <NavLink key={l.code} to={`/voice/${l.code}#${tab}`} className={pill}>{l.name}</NavLink>
+          ))}
+        </nav>
+        <h1 className="h-display text-3xl">{q.data?.title ?? "Voice: ASR + NLU"}</h1>
+        {q.data && <p className="text-body max-w-[780px]">{q.data.intro}</p>}
         {q.data && <p className="text-xs text-muted">Researched and link-checked {fmtDay(q.data.checked_on)}. Use "What's new" to find anything newer.</p>}
       </header>
-      <div role="tablist" aria-label="Hindi Voice sections" className="flex gap-1 border-b border-line overflow-x-auto">
+      <div role="tablist" aria-label="Voice sections" className="flex gap-1 border-b border-line overflow-x-auto">
         {TABS.map(([id, label]) => (
           <button key={id} role="tab" type="button" aria-selected={tab === id} aria-controls={`hv-panel-${id}`} id={`hv-tab-${id}`}
             onClick={() => setTab(id)}
@@ -113,10 +124,11 @@ export default function HindiVoice() {
         {q.data && tab === "playbook" && <Playbook d={q.data} />}
         {q.data && tab === "testing" && <Testing d={q.data} />}
         {q.data && tab === "data" && <DataPlan d={q.data} go={setTab} />}
-        {tab === "generator" && <Generator />}
-        {tab === "news" && <WhatsNew />}
+        {q.data && tab === "generator" && <Generator key={lang} d={q.data} />}
+        {q.data && tab === "news" && <WhatsNew key={lang} d={q.data} />}
       </div>
     </main>
+    </LangCtx.Provider>
   );
 }
 
@@ -134,7 +146,7 @@ function Overview({ d, go }: { d: HV; go: (t: Tab) => void }) {
         {([
           ["learn", "1. Learn", "Courses in order, plus 12 technical modules with review Q&A."],
           ["playbook", "2. Plan the launch", "10 phases from scoping to post-launch, with a checklist."],
-          ["generator", "3. Make data", "Generate Hindi, romanized and Hinglish utterances with slot labels."],
+          ["generator", "3. Make data", `Generate ${d.utter_styles.map((s) => s.label).join(", ")} utterances with slot labels.`],
         ] as const).map(([t, h, p]) => (
           <button key={t} type="button" onClick={() => go(t)} className="card p-4 text-left hover:border-accent">
             <span className="font-semibold block">{h}</span><span className="text-sm text-muted">{p}</span>
@@ -149,7 +161,7 @@ function Overview({ d, go }: { d: HV; go: (t: Tab) => void }) {
       </Section>
 
       <Section id="hv-skills" title="Competencies"
-        intro="Levels needed by the person leading the Hindi ASR/NLU work. Rate yourself to see your gaps.">
+        intro={`Levels needed by the person leading the ${d.name} ASR/NLU work. Rate yourself to see your gaps.`}>
         <div className="card p-5 flex flex-col gap-2">
           <ProgressBar pct={Math.round((met / skills.length) * 100)} label={`${met} of ${skills.length} skills at the needed level`} />
           <p className="text-sm text-muted">{met} of {skills.length} skills at the needed level · {rated} rated.
@@ -192,8 +204,9 @@ function Overview({ d, go }: { d: HV; go: (t: Tab) => void }) {
 function Learn({ d }: { d: HV }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const lang = useLang();
   const makePath = useMutation({
-    mutationFn: api.hindiVoicePath,
+    mutationFn: () => api.voicePath(lang),
     onSuccess: (r) => { qc.invalidateQueries(); navigate(`/paths/${r.path_id}`); },
   });
   const done = d.courses.filter((c) => c.status === "done").length;
@@ -216,7 +229,7 @@ function Learn({ d }: { d: HV }) {
       </Section>
 
       <Section id="hv-modules" title="Technical modules"
-        intro="The building blocks of Hindi ASR and NLU. Open a module for its topics and review Q&A; the LLM writes the questions and checks them against papers and official docs.">
+        intro={`The building blocks of ${d.name} ASR and NLU. Open a module for its topics and review Q&A; the LLM writes the questions and checks them against papers and official docs.`}>
         <div className="card p-5 flex flex-wrap items-center gap-4">
           <p className="flex-1 min-w-[240px] text-sm text-body">
             {d.modules.length} modules · {d.modules.reduce((n, m) => n + m.lessons, 0)} topics. Add them to My paths to
@@ -232,7 +245,7 @@ function Learn({ d }: { d: HV }) {
           <div key={s.id} className="flex flex-col gap-2">
             <h3 className="font-semibold text-lg">{s.title}</h3>
             <ul className="flex flex-col gap-3">
-              {d.modules.filter((m) => m.side === s.id).map((m) => <li key={m.slug}><ModuleCard m={m} /></li>)}
+              {d.modules.filter((m) => m.side === s.id).map((m) => <li key={m.slug}><ModuleCard m={m} sources={d.qa_sources} /></li>)}
             </ul>
           </div>
         ))}
@@ -260,7 +273,7 @@ function CourseRow({ c }: { c: HVCourse }) {
   );
 }
 
-function ModuleCard({ m }: { m: HVModule }) {
+function ModuleCard({ m, sources }: { m: HVModule; sources: string }) {
   const [open, setOpen] = useState(false);
   const [qa, setQa] = useState(false);
   return (
@@ -297,8 +310,7 @@ function ModuleCard({ m }: { m: HVModule }) {
           )}
         </div>
       )}
-      {qa && <ReviewQA slug={m.slug} lessonCount={m.lessons} parentKey={QK} unit="topic"
-        sourceHint="papers, model cards and official docs" />}
+      {qa && <ReviewQA slug={m.slug} lessonCount={m.lessons} parentKey={QK} unit="topic" sourceHint={sources} />}
     </div>
   );
 }
@@ -309,7 +321,7 @@ function ModelsData({ d }: { d: HV }) {
   const [topOnly, setTopOnly] = useState(false);
   return (
     <>
-      <Section id="hv-models" title="Best Hindi models and tools"
+      <Section id="hv-models" title={`Best ${d.name} models and tools`}
         intro="WER numbers are quoted from the source named, on the benchmark named; lower is better. Check licences before product use.">
         <label className="flex items-center gap-2 text-sm font-semibold min-h-[36px]">
           <input type="checkbox" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} className="w-4 h-4" /> Top picks only
@@ -325,7 +337,7 @@ function ModelsData({ d }: { d: HV }) {
                   <li key={m.name} className="card p-4 flex flex-col gap-1.5">
                     <p className="font-semibold"><Ext href={m.url}>{m.name}</Ext> {m.top_pick && <Top />}</p>
                     <p className="text-sm text-muted">{m.org}{m.size && ` · ${m.size}`}{m.licence && ` · ${m.licence}`}</p>
-                    {m.result && <p className="text-sm"><span className="font-semibold">Hindi result: </span>{m.result}</p>}
+                    {m.result && <p className="text-sm"><span className="font-semibold">Result: </span>{m.result}</p>}
                     <p className="text-sm text-body">{m.notes}</p>
                     <p className="text-xs text-muted flex flex-wrap gap-x-3">
                       {m.on_device && <span>On-device: {m.on_device}</span>}
@@ -339,7 +351,7 @@ function ModelsData({ d }: { d: HV }) {
         })}
       </Section>
       <Section id="hv-datasets" title="Datasets"
-        intro='Many AI4Bharat datasets are "gated": sign in to Hugging Face and accept the terms to download.'>
+        intro='Datasets marked "gated" need you to sign in to Hugging Face and accept their terms before downloading.'>
         {d.dataset_kinds.map((k) => (
           <div key={k.id} className="flex flex-col gap-2">
             <h3 className="font-semibold text-lg">{k.title}</h3>
@@ -536,14 +548,6 @@ function DataPlan({ d, go }: { d: HV; go: (t: Tab) => void }) {
 
 // ---------------------------------------------------------------- utterance generator
 
-const STYLE_LABEL: Record<UtterStyle, string> = { devanagari: "Devanagari", romanized: "Romanized", hinglish: "Hinglish" };
-const DEFAULT: UtterParams = {
-  intent: "SetAlarm", description: "Set an alarm for a time, optionally on a date with a label",
-  slots: [{ name: "time", examples: "सुबह 6 बजे, साढ़े सात, 7:30" }, { name: "date", examples: "कल, परसों, सोमवार" },
-    { name: "label", examples: "gym, दवाई" }],
-  count: 30, styles: ["devanagari", "romanized", "hinglish"],
-};
-
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = Object.assign(document.createElement("a"), { href: url, download: name });
@@ -552,18 +556,21 @@ function download(name: string, text: string, type: string) {
 }
 const csvCell = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
-function Generator() {
+function Generator({ d: info }: { d: HV }) {
   const qc = useQueryClient();
+  const lang = useLang();
+  const styleIds: UtterStyle[] = info.utter_styles.map((s: UtterStyleInfo) => s.id);
+  const STYLE_LABEL: Record<string, string> = Object.fromEntries(info.utter_styles.map((s) => [s.id, s.label]));
   const q = useQuery({
-    queryKey: ["utterances"], queryFn: api.utterances,
+    queryKey: ["utterances", lang], queryFn: () => api.utterances(lang),
     refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
   });
-  const [p, setP] = useState<UtterParams>(DEFAULT);
+  const [p, setP] = useState<UtterParams>(info.utter_default);
   const loaded = useRef(false);
   useEffect(() => {  // start from the last run's settings
     if (!loaded.current && q.data) { loaded.current = true; if (q.data.params) setP(q.data.params); }
   }, [q.data]);
-  const gen = useMutation({ mutationFn: api.generateUtterances, onSuccess: (d) => qc.setQueryData(["utterances"], d) });
+  const gen = useMutation({ mutationFn: (b: UtterParams) => api.generateUtterances(lang, b), onSuccess: (d) => qc.setQueryData(["utterances", lang], d) });
   const [style, setStyle] = useState<UtterStyle | "all">("all");
 
   const d = q.data;
@@ -581,8 +588,8 @@ function Generator() {
   const exportNl = () => download(`${intent}.aligned-nl.txt`, (d?.items ?? []).map((u) => u.annotated).join("\n"), "text/plain;charset=utf-8");
 
   return (
-    <Section id="hv-gen-tool" title="Hindi utterance generator"
-      intro="Describe an intent and its slots. The LLM writes varied things users would say in Devanagari, romanized Hindi and Hinglish, with slot labels. Slot values not found in the sentence are removed. Export as CSV, JSONL or Bixby-style Aligned NL, and have a native speaker review a sample before training on it.">
+    <Section id="hv-gen-tool" title={`${info.name} utterance generator`}
+      intro={`Describe an intent and its slots. The LLM writes varied things users would say (${info.utter_styles.map((s) => s.label).join(", ")}), with slot labels. Slot values not found in the sentence are removed. Export as CSV, JSONL or Bixby-style Aligned NL, and have a native speaker review a sample before training on it.`}>
       <form onSubmit={onSubmit} className="card p-5 flex flex-col gap-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
           <div>
@@ -617,7 +624,7 @@ function Generator() {
         <div className="flex flex-wrap items-end gap-4">
           <fieldset className="flex flex-wrap gap-3">
             <legend className="font-semibold text-sm mb-1">Styles</legend>
-            {(Object.keys(STYLE_LABEL) as UtterStyle[]).map((st) => (
+            {styleIds.map((st) => (
               <label key={st} className="flex items-center gap-2 min-h-[36px]">
                 <input type="checkbox" className="w-4 h-4" checked={p.styles.includes(st)}
                   onChange={(e) => setP({ ...p, styles: e.target.checked ? [...p.styles, st] : p.styles.filter((x) => x !== st) })} />
@@ -648,7 +655,7 @@ function Generator() {
             <label htmlFor="ug-filter" className="sr-only">Show style</label>
             <select id="ug-filter" className="input w-auto py-1.5" value={style} onChange={(e) => setStyle(e.target.value as UtterStyle | "all")}>
               <option value="all">All styles</option>
-              {(Object.keys(STYLE_LABEL) as UtterStyle[]).map((s) => <option key={s} value={s}>{STYLE_LABEL[s]}</option>)}
+              {styleIds.map((s) => <option key={s} value={s}>{STYLE_LABEL[s]}</option>)}
             </select>
             <button type="button" className="btn-outline btn-sm" onClick={exportCsv}>CSV</button>
             <button type="button" className="btn-outline btn-sm" onClick={exportJsonl}>JSONL</button>
@@ -656,7 +663,7 @@ function Generator() {
           </div>
           {d!.dropped_slots > 0 && <p className="text-xs text-muted">{d!.dropped_slots} slot label{d!.dropped_slots === 1 ? " was" : "s were"} removed because the value wasn't in the sentence.</p>}
           <ul className="flex flex-col divide-y divide-line">
-            {items.map((u) => <UtterRow key={u.text} u={u} />)}
+            {items.map((u) => <UtterRow key={u.text} u={u} label={STYLE_LABEL[u.style] ?? u.style} lang={lang} />)}
           </ul>
         </div>
       )}
@@ -664,12 +671,12 @@ function Generator() {
   );
 }
 
-function UtterRow({ u }: { u: Utterance }) {
+function UtterRow({ u, label, lang }: { u: Utterance; label: string; lang: string }) {
   return (
     <li className="py-2.5 flex flex-col gap-1">
-      <p className="text-lg" lang={u.style === "romanized" ? "hi-Latn" : "hi"}>{u.text}</p>
+      <p className="text-lg" lang={lang === "hi" && u.style === "romanized" ? "hi-Latn" : lang}>{u.text}</p>
       <p className="text-xs text-muted flex flex-wrap gap-1.5 items-center">
-        <Chip>{STYLE_LABEL[u.style]}</Chip><Chip>{u.tone}</Chip>
+        <Chip>{label}</Chip><Chip>{u.tone}</Chip>
         {u.slots.map((s) => <Chip key={s.name + s.value} cls="bg-accent-soft text-accent-dark">{s.name}: {s.value}</Chip>)}
       </p>
       <code className="text-xs text-muted break-all">{u.annotated}</code>
@@ -679,22 +686,23 @@ function UtterRow({ u }: { u: Utterance }) {
 
 // ---------------------------------------------------------------- what's new
 
-function WhatsNew() {
+function WhatsNew({ d: info }: { d: HV }) {
   const qc = useQueryClient();
+  const lang = useLang();
   const q = useQuery({
-    queryKey: ["hv-research"], queryFn: api.hvResearch,
+    queryKey: ["voice-research", lang], queryFn: () => api.voiceResearch(lang),
     refetchInterval: (query) => (query.state.data?.status === "running" ? 4000 : false),
   });
   const [months, setMonths] = useState(12);
   const [kind, setKind] = useState("all");
-  const refresh = useMutation({ mutationFn: () => api.refreshHVResearch(months), onSuccess: (d) => qc.setQueryData(["hv-research"], d) });
+  const refresh = useMutation({ mutationFn: () => api.refreshVoiceResearch(lang, months), onSuccess: (d) => qc.setQueryData(["voice-research", lang], d) });
   const d = q.data;
   const running = d?.status === "running" || refresh.isPending;
   const kinds = [...new Set((d?.items ?? []).map((i) => i.kind))];
   const items = (d?.items ?? []).filter((i) => kind === "all" || i.kind === kind);
 
   return (
-    <Section id="hv-new" title="What's new in Hindi speech and NLU"
+    <Section id="hv-new" title={`What's new in ${info.name} speech and NLU`}
       intro="The LLM searches the web for new models, datasets, papers, tools and news that aren't in the lists on this page. Every link is checked.">
       <div className="card p-5 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[220px] text-sm text-muted">
@@ -732,7 +740,7 @@ function WhatsNew() {
               {!i.verified && <> <Chip cls="bg-pp-bg text-pp-fg">Link unverified</Chip></>}</p>
             <p className="text-xs text-muted">{[i.org, i.date && fmtDay(i.date), i.licence].filter(Boolean).join(" · ")}</p>
             <p className="text-sm text-body">{i.summary}</p>
-            {i.result && <p className="text-sm"><span className="font-semibold">Hindi result: </span>{i.result}</p>}
+            {i.result && <p className="text-sm"><span className="font-semibold">Result: </span>{i.result}</p>}
             <p className="text-sm text-muted">{i.why_it_matters}</p>
           </li>
         ))}
