@@ -1,4 +1,4 @@
-// Interview prep: list of companions + the Configure page (new or edit).
+// Upskill Prep: list of companions + the Configure page (new or edit).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -36,25 +36,25 @@ export function InterviewList() {
     <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="h-display text-3xl">Interview prep</h1>
+          <h1 className="h-display text-3xl">Upskill Prep</h1>
           <p className="text-muted mt-1 max-w-[640px]">
-            Each interview companion researches a role, maps every skill it needs, builds a study plan, writes a question bank with sourced answers and runs mock interviews.
+            Each Upskill Prep companion researches a role, maps every skill it needs, builds a study plan, writes a question bank with sourced answers and runs mock interviews.
           </p>
         </div>
-        <Link to="/interview/new" className="btn-primary"><Icon.plus /> New interview companion</Link>
+        <Link to="/upskill/new" className="btn-primary"><Icon.plus /> New Upskill Prep companion</Link>
       </div>
       {list.isLoading && <Thinking label="Loading…" />}
       {list.isError && <ErrorBox error={list.error} onRetry={() => list.refetch()} />}
       {list.data?.length === 0 && (
-        <Link to="/interview/new" className="card border-dashed p-8 flex flex-col gap-2 hover:border-accent">
-          <span className="h-display text-xl">Set up your first interview companion</span>
+        <Link to="/upskill/new" className="card border-dashed p-8 flex flex-col gap-2 hover:border-accent">
+          <span className="h-display text-xl">Set up your first Upskill Prep companion</span>
           <span className="text-muted">Paste a job description, or just enter the role title and let the agents research it.</span>
         </Link>
       )}
       <ul className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
         {list.data?.map((p) => (
           <li key={p.id}>
-            <Link to={`/interview/${p.id}`} className="card h-full p-5 flex flex-col gap-3 hover:border-accent">
+            <Link to={`/upskill/${p.id}`} className="card h-full p-5 flex flex-col gap-3 hover:border-accent">
               <div className="flex flex-wrap gap-2">
                 <span className="chip bg-[#F1F3F6] text-body capitalize">{p.seniority}</span>
                 {p.status === "building" || p.last_run?.status === "running"
@@ -112,14 +112,14 @@ export function InterviewConfigure() {
 
   const create = useMutation({
     mutationFn: () => api.createInterview(f),
-    onSuccess: (d) => { qc.invalidateQueries(); navigate(`/interview/${d.id}`); },
+    onSuccess: (d) => { qc.invalidateQueries(); navigate(`/upskill/${d.id}`); },
   });
   const save = useMutation({
     mutationFn: async (rebuild: boolean) => {
       await api.updateInterview(editId!, { ...f, ...(f.interview_date ? {} : { clear_date: true }) });
       if (rebuild) await api.rebuildInterview(editId!, { replace_plan: replacePlan, replace_questions: replaceQuestions });
     },
-    onSuccess: () => { qc.invalidateQueries(); navigate(`/interview/${editId}`); },
+    onSuccess: () => { qc.invalidateQueries(); navigate(`/upskill/${editId}`); },
   });
   const busy = create.isPending || save.isPending;
   const err = create.error ?? save.error;
@@ -131,8 +131,8 @@ export function InterviewConfigure() {
       <form className="card p-6 sm:p-8 flex flex-col gap-6"
         onSubmit={(e) => { e.preventDefault(); if (editId) save.mutate(false); else create.mutate(); }}>
         <div className="flex flex-col gap-2">
-          <Link to={editId ? `/interview/${editId}` : "/interview"} className="text-sm text-accent font-semibold">← Back</Link>
-          <h1 className="h-display text-3xl">{editId ? "Edit interview companion" : "Configure your interview companion"}</h1>
+          <Link to={editId ? `/upskill/${editId}` : "/upskill"} className="text-sm text-accent font-semibold">← Back</Link>
+          <h1 className="h-display text-3xl">{editId ? "Edit Upskill Prep companion" : "Configure your Upskill Prep companion"}</h1>
           <p className="text-muted">The agents use this to research the role, map the skills, plan your study time and write questions at the bar you choose.</p>
         </div>
 
@@ -239,7 +239,7 @@ export function InterviewConfigure() {
             </>
           ) : (
             <button type="submit" className="btn-primary min-h-[48px] px-6" disabled={busy || !f.question_types.length}>
-              {busy ? "Starting the agents…" : "Prepare my interview plan"}
+              {busy ? "Starting the agents…" : "Build my Upskill Prep plan"}
             </button>
           )}
           <span className="text-[13px] text-muted self-center">Takes about 10 minutes and roughly 40–50 Claude calls.</span>

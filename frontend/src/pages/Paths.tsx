@@ -44,7 +44,7 @@ export function PathsList() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="chip bg-[#F1F3F6] text-body capitalize">{p.level}</span>
               {p.is_seed && <span className="chip bg-accent-soft text-accent-dark">Starter path</span>}
-              {p.kind === "interview" && <span className="chip bg-pp-bg text-pp-fg">Interview prep</span>}
+              {p.kind === "interview" && <span className="chip bg-pp-bg text-pp-fg">Upskill Prep</span>}
               {!p.show_on_home && <span className="chip bg-[#E3E6EC] text-body">Hidden from home</span>}
               {p.status === "building" && <span className="chip bg-pp-bg text-pp-fg">Building…</span>}
               {p.status === "failed" && <span className="chip bg-yt-bg text-yt-fg">Build failed</span>}

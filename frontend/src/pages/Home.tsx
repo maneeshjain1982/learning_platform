@@ -66,7 +66,7 @@ export default function Home() {
           {data.paths.map((p) => (
             <button key={p.id} type="button" role="tab" aria-selected={p.id === active.id} onClick={() => choose(p.id)}
               className={`pill ${p.id === active.id ? "bg-ink text-white border-ink" : "bg-white text-body border-line2 hover:bg-ground"}`}>
-              {p.kind === "interview" && <span className="chip bg-pp-bg text-pp-fg mr-2">Interview prep</span>}
+              {p.kind === "interview" && <span className="chip bg-pp-bg text-pp-fg mr-2">Upskill Prep</span>}
               {p.title} · {p.status === "building" ? "building…" : p.pct ? `${p.pct}%` : "Not started"}
             </button>
           ))}

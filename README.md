@@ -7,6 +7,11 @@ An **Ask LLM** tutor is available on every lesson.
 Runs locally for one person. LLM calls go through **LLM_Bridge** (`D:\Y26\work_dir\LLM_Bridge`) using your
 signed-in Claude Code CLI, so **no API keys** are needed. See [PLAN.md](PLAN.md) for the design.
 
+## Menu
+
+The top menu has **Home**, **Learning** (My paths, Claude learning, Voice ASR/NLU, Upskill Prep, New goal), **Career**
+and **Library** (Discover, My links). On a phone, the groups open inside the ☰ menu.
+
 ## Run it
 
 Requirements: Python 3.10+, Node 18+, and the Claude Code CLI signed in (`claude` once, then log in).
@@ -51,9 +56,9 @@ http://localhost:5173 (API calls are proxied to port 8000).
 
 Coursera and Udemy are **search links** (no public API). Everything is stored in `data/study.db` (SQLite).
 
-## Interview prep
+## Upskill Prep
 
-**Interview prep** in the top menu holds your interview companions. Click **New interview companion** and fill in:
+**Upskill Prep** (under **Learning** in the top menu) holds your prep companions for a target role. Click **New Upskill Prep companion** and fill in:
 
 - the role and company
 - the job description (optional; without one, the agents research the role)
@@ -66,7 +71,7 @@ The agents then:
 1. **JD Analyst:** reads the job description.
 2. **Role Researcher:** web-searches postings and interview guides, and checks every source link.
 3. **Skill Mapper:** lists every skill and technology, marked must-have, important or nice-to-have.
-4. **Prep Planner:** builds a study plan as a learning path, tagged "Interview prep" on Home. The video and paper agents fill it in.
+4. **Prep Planner:** builds a study plan as a learning path, tagged "Upskill Prep" on Home. The video and paper agents fill it in.
 5. **Question Writer:** writes questions with model answers, key points, follow-ups, red flags and sources. Papers are checked on arXiv by ID and title; dead links are removed.
 6. **Coach:** writes what to do today.
 
@@ -109,7 +114,7 @@ To add another language, add a content module like `backend/english_voice.py` an
 ## Career
 
 - **Certifications:** a researched list of Agentic AI and Generative AI certifications (Anthropic, Google Cloud, Microsoft, NVIDIA, AWS, Databricks, plus courses with certificates), grouped by level, with price, format and what each one tests. **Refresh** looks for new certifications and changes to these.
-- **Hot jobs:** set the roles and location, then **Find jobs**. The LLM finds open postings from the last 30 days, breaks down each job description, and lists the skills asked for most. **Prepare for this interview** opens Interview prep with the role, company and JD filled in.
+- **Hot jobs:** set the roles and location, then **Find jobs**. The LLM finds open postings from the last 30 days, breaks down each job description, and lists the skills asked for most. **Prepare in Upskill Prep** opens Upskill Prep with the role, company and JD filled in.
 
 All LLM research runs in the background; you can leave the page and come back.
 

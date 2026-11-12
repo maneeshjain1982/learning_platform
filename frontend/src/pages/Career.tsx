@@ -261,7 +261,7 @@ function JobCard({ j }: { j: JobPosting }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const facts = [j.location, j.work_mode !== "unknown" && j.work_mode, j.seniority, j.salary].filter(Boolean) as string[];
-  const toPrep = () => navigate("/interview/new", {
+  const toPrep = () => navigate("/upskill/new", {
     state: { prefill: { role_title: j.title, company: j.company, jd_text: jdText(j) } },
   });
   return (
@@ -286,7 +286,7 @@ function JobCard({ j }: { j: JobPosting }) {
         <button type="button" className="btn-outline btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? "Hide JD breakdown" : "Show JD breakdown"}
         </button>
-        <button type="button" className="btn-outline btn-sm" onClick={toPrep}>Prepare for this interview</button>
+        <button type="button" className="btn-outline btn-sm" onClick={toPrep}>Prepare in Upskill Prep</button>
       </div>
       {open && (
         <div className="grid gap-4 md:grid-cols-2 text-sm pt-1">

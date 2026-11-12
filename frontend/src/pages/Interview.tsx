@@ -1,4 +1,4 @@
-// One interview companion: Overview, Skills & tech, Prep plan, Questions, Mock interview.
+// One Upskill Prep companion: Overview, Skills & tech, Prep plan, Questions, Mock interview.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -63,7 +63,7 @@ export default function InterviewPage() {
         <section aria-labelledby="run-h" className="card p-5 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 id="run-h" className="font-semibold flex-1">
-              {running ? "Your interview companion agents are working" : "The last agent run had a problem"}
+              {running ? "Your Upskill Prep agents are working" : "The last agent run had a problem"}
             </h2>
             {running && <Thinking label="Working" />}
           </div>
@@ -73,7 +73,7 @@ export default function InterviewPage() {
         </section>
       )}
 
-      <div role="tablist" aria-label="Interview companion" className="flex flex-wrap gap-1 border-b border-line">
+      <div role="tablist" aria-label="Upskill Prep" className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map(([v, l]) => (
           <button key={v} type="button" role="tab" aria-selected={tab === v} onClick={() => go(v)}
             className={`px-4 py-3 -mb-px border-b-2 font-semibold ${tab === v ? "border-accent text-accent-dark" : "border-transparent text-body hover:text-ink"}`}>
@@ -98,12 +98,12 @@ function Header({ p }: { p: InterviewDetail }) {
   const qc = useQueryClient();
   const del = useMutation({
     mutationFn: () => api.deleteInterview(p.id, true),
-    onSuccess: () => { qc.invalidateQueries(); navigate("/interview"); },
+    onSuccess: () => { qc.invalidateQueries(); navigate("/upskill"); },
   });
   return (
     <div className="flex flex-wrap items-start gap-5">
       <div className="flex-1 min-w-[280px] flex flex-col gap-2">
-        <Link to="/interview" className="text-sm text-accent font-semibold">← Interview prep</Link>
+        <Link to="/upskill" className="text-sm text-accent font-semibold">← Upskill Prep</Link>
         <h1 className="h-display text-3xl sm:text-4xl">{p.role_title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
           {p.company && <span className="font-semibold text-body">{p.company}</span>}
@@ -113,7 +113,7 @@ function Header({ p }: { p: InterviewDetail }) {
           {!p.jd_text && <span className="chip bg-[#F1F3F6] text-body">No job description: based on research</span>}
         </div>
         <div className="flex flex-wrap gap-2 pt-2">
-          <Link to={`/interview/${p.id}/edit`} className="btn-outline btn-sm"><Icon.edit size={15} /> Edit configuration</Link>
+          <Link to={`/upskill/${p.id}/edit`} className="btn-outline btn-sm"><Icon.edit size={15} /> Edit configuration</Link>
           <button type="button" className="btn-outline btn-sm text-yt-fg" disabled={del.isPending}
             onClick={() => { if (confirm(`Delete the "${p.role_title}" companion with its questions, practice history and prep plan?`)) del.mutate(); }}>
             <Icon.trash size={15} /> Delete
@@ -315,7 +315,7 @@ function Plan({ p }: { p: InterviewDetail }) {
         <div className="flex-1 min-w-[260px] flex flex-col gap-2">
           <h2 className="h-display text-xl">{d.title}</h2>
           <p className="text-body">{d.summary}</p>
-          <p className="text-sm text-muted">{d.modules} modules · {d.lessons} lessons · {d.hours_per_week} h/week for {d.weeks} weeks · also on your Home page, tagged “Interview prep”</p>
+          <p className="text-sm text-muted">{d.modules} modules · {d.lessons} lessons · {d.hours_per_week} h/week for {d.weeks} weeks · also on your Home page, tagged “Upskill Prep”</p>
           <div className="max-w-[420px]"><ProgressBar pct={d.pct} label={`${d.pct}% complete`} /></div>
         </div>
         <div className="flex flex-wrap gap-2">
