@@ -12,6 +12,7 @@ import Voice from "./pages/Voice";
 import Home from "./pages/Home";
 import LessonPage from "./pages/Lesson";
 import Links from "./pages/Links";
+import News from "./pages/News";
 import InterviewPage from "./pages/Interview";
 import { InterviewConfigure, InterviewList } from "./pages/InterviewSetup";
 import PathPage, { PathsList } from "./pages/Paths";
@@ -111,6 +112,7 @@ function Nav() {
           <NavLink to="/" end className={link} onClick={closeAll}>Home</NavLink>
           <NavGroup g={GROUPS[0]} open={openGroup === GROUPS[0].id} closeAll={closeAll}
             setOpen={(v) => setOpenGroup(v ? GROUPS[0].id : null)} />
+          <NavLink to="/news" className={link} onClick={closeAll}>Tech News</NavLink>
           {me.is_admin && <NavLink to="/career" className={link} onClick={closeAll}>Career</NavLink>}
           <NavGroup g={GROUPS[1]} open={openGroup === GROUPS[1].id} closeAll={closeAll}
             setOpen={(v) => setOpenGroup(v ? GROUPS[1].id : null)} />
@@ -211,6 +213,7 @@ function SignedInApp() {
           <Route path="/upskill/:id/edit" element={<AdminOnly><InterviewConfigure /></AdminOnly>} />
           <Route path="/interview/*" element={<OldInterviewLink />} />
           <Route path="/discover" element={<Discover />} />
+          <Route path="/news" element={<News />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<main className="p-8"><h1 className="h-display text-2xl">Page not found</h1><Link className="text-accent" to="/">Go home</Link></main>} />
         </Routes>

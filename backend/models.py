@@ -356,3 +356,14 @@ class QAMark(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     qa_id: Mapped[int] = mapped_column(ForeignKey("academy_qa.id", ondelete="CASCADE"), primary_key=True)
     status: Mapped[str] = mapped_column(String(10), default="new")  # new | review | known
+
+
+class ContentEdit(Base):
+    """Admin change to a built-in catalog item (Voice models/datasets/papers/courses, certifications, Claude
+    courses): edited fields and/or deleted for everyone. The researched original stays in code."""
+    __tablename__ = "content_edits"
+    scope: Mapped[str] = mapped_column(String(60), primary_key=True)   # e.g. "voice.hi.models", "career.certs"
+    key: Mapped[str] = mapped_column(String(300), primary_key=True)    # the item's name / id / slug
+    fields: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    hidden: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)

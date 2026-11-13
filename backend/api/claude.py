@@ -21,6 +21,7 @@ from ..models import AcademyQA, LearningPath, Lesson, Module, QAMark, User
 from ..providers import Candidate
 from ..voice_langs import MODULE_INDEX
 from . import bgjobs
+from .. import overlay
 from ..auth import user_slug
 from .common import progress_map, qa_counts, require_admin, uid
 
@@ -70,10 +71,11 @@ def catalog(db: Session = Depends(get_db)):
     courses = [{**c, "outline": [{"title": t, "lessons": ls} for t, ls in c["outline"]],
                 "status": statuses.get(c["slug"], "todo"), "path_progress": in_path.get(c["slug"]),
                 "qa": qa.get(c["slug"], {"total": 0, "known": 0, "review": 0})}
-               for c in ca.COURSES]
+               for c in overlay.apply(db, "claude.courses", ca.COURSES)]
     track_hours = sum(c["hours"] or 0 for c in ca.AGENT_TRACK)
     return {
         "base_url": ca.BASE_URL, "checked_on": ca.CHECKED_ON, "groups": ca.GROUPS, "courses": courses,
+        "removed": overlay.hidden_count(db, "claude.courses", ca.COURSES),
         "track": {"hours": track_hours, "courses": len(ca.AGENT_TRACK),
                   "lessons": sum(c["lessons"] for c in ca.AGENT_TRACK)},
         "path_id": path.id if path else None,

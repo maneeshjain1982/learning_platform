@@ -16,11 +16,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..agents.base import attach, upsert_resource
-from ..agents.voice import SlotSpec, find_research, generate_utterances
+from ..agents.voice import SlotSpec, SlotValue, annotate, find_research, generate_utterances
 from ..db import get_db
 from ..llm import get_llm
 from ..models import AcademyQA, LearningPath, Lesson, Module, User
 from ..providers import Candidate
+from .. import overlay
 from ..voice_langs import LANGS
 from . import bgjobs
 from ..auth import user_slug
@@ -90,14 +91,19 @@ def overview(code: str, db: Session = Depends(get_db)):
                           "skills": [{"name": n, "need": need, "why": why, "level": st["skills"].get(n, 0)}
                                      for n, need, why in a["skills"]]} for a in lang.COMPETENCIES],
         "phases": lang.PHASES,
-        "courses": [{**c, "status": st["courses"].get(c["id"], "todo")} for c in lang.COURSES],
+        "courses": [{**c, "status": st["courses"].get(c["id"], "todo")}
+                    for c in overlay.apply(db, f"voice.{lang.CODE}.courses", lang.COURSES)],
         "sides": lang.SIDES,
         "modules": [{**{k: v for k, v in m.items() if k != "outline"},
                      "outline": [{"title": t, "lessons": ls} for t, ls in m["outline"]],
                      "qa": qa.get(m["slug"], empty), "path_progress": prog.get(m["slug"])} for m in lang.MODULES],
-        "model_kinds": lang.MODEL_KINDS, "models": lang.MODELS,
-        "dataset_kinds": lang.DATASET_KINDS, "datasets": lang.DATASETS,
-        "paper_topics": lang.PAPER_TOPICS, "papers": lang.PAPERS,
+        "model_kinds": lang.MODEL_KINDS, "models": overlay.apply(db, f"voice.{lang.CODE}.models", lang.MODELS),
+        "dataset_kinds": lang.DATASET_KINDS,
+        "datasets": overlay.apply(db, f"voice.{lang.CODE}.datasets", lang.DATASETS),
+        "paper_topics": lang.PAPER_TOPICS, "papers": overlay.apply(db, f"voice.{lang.CODE}.papers", lang.PAPERS),
+        "removed": {k: overlay.hidden_count(db, f"voice.{lang.CODE}.{k}", items) for k, items in
+                    (("models", lang.MODELS), ("datasets", lang.DATASETS), ("papers", lang.PAPERS),
+                     ("courses", lang.COURSES))},
         "playbook": lang.PLAYBOOK, "steps_done": [s for s in st["steps"] if s in steps],
         "testing": lang.TESTING, "test_sizing": lang.TEST_SIZING,
         "variability": lang.VARIABILITY, "sourcing": lang.SOURCING, "generation": lang.GENERATION,
@@ -238,6 +244,34 @@ def _utter_out(db: Session, lang: ModuleType) -> dict:
 @router.get("/{code}/utterances")
 def get_utterances(code: str, db: Session = Depends(get_db)):
     return _utter_out(db, _lang(code))
+
+
+class UtterEditIn(BaseModel):
+    old: str = Field(min_length=1, max_length=500)
+    text: str | None = Field(None, min_length=1, max_length=500, description="New text; leave out to delete")
+
+
+@router.post("/{code}/utterances/edit")
+def edit_utterance(code: str, body: UtterEditIn, db: Session = Depends(get_db)):
+    """Change an utterance's text (slots whose values are still in it are kept) or delete it."""
+    lang = _lang(code)
+    key = f"{lang.JOB_PREFIX}-utterances"
+    st = bgjobs.read(db.get(User, uid()), key)
+    items = list(st.get("items") or [])
+    i = next((n for n, u in enumerate(items) if u["text"] == body.old), None)
+    if i is None:
+        raise HTTPException(404, "Utterance not found")
+    if body.text is None:
+        items.pop(i)
+    else:
+        text = body.text.strip()
+        intent = (st.get("params") or {}).get("intent", "Intent")
+        slots = [SlotValue(**s) for s in items[i]["slots"] if s["value"] in text]
+        items[i] = {**items[i], "text": text, "slots": [s.model_dump() for s in slots],
+                    "annotated": annotate(text, intent, slots)}
+    bgjobs.write(db, key, items=items)
+    db.commit()
+    return _utter_out(db, lang)
 
 
 @router.post("/{code}/utterances/generate")

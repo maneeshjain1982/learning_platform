@@ -22,6 +22,7 @@
   .h-display { @apply font-display font-semibold tracking-tight; }
   .input { @apply w-full border border-[#C9CED8] rounded-[10px] px-3.5 py-2.5 bg-white text-ink placeholder:text-muted focus:border-accent focus:outline-none; }
   .label { @apply font-semibold; }
+  .icon-btn { @apply inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-ground disabled:opacity-40; }
 }
 
 .prose pre { background: #14171F; }

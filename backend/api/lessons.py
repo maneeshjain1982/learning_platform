@@ -55,6 +55,29 @@ async def generate_notes(lesson_id: int, force: bool = False, db: Session = Depe
     return {"notes_status": "writing"}
 
 
+class ContentIn(BaseModel):
+    content_md: str = Field(min_length=1, max_length=200_000)
+
+
+@router.put("/{lesson_id}/content")
+def edit_notes(lesson_id: int, body: ContentIn, db: Session = Depends(get_db)):
+    """Replace the lesson notes with your own edited version."""
+    lesson = get_or_404(db, Lesson, lesson_id)
+    if lesson.notes_status == "writing":
+        raise HTTPException(409, "The notes are being written; try again when they're ready.")
+    lesson.content_md, lesson.notes_status = body.content_md, "ready"
+    db.commit()
+    return lesson_out(db, lesson)
+
+
+@router.delete("/{lesson_id}/content")
+def delete_notes(lesson_id: int, db: Session = Depends(get_db)):
+    lesson = get_or_404(db, Lesson, lesson_id)
+    lesson.content_md, lesson.notes_status = None, "deleted"  # not "none": that would auto-write new notes
+    db.commit()
+    return lesson_out(db, lesson)
+
+
 class UserNotesIn(BaseModel):
     text: str = Field(max_length=100_000)
 

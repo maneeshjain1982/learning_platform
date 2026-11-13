@@ -19,6 +19,7 @@ export interface Resource {
   why: string;
   saved: boolean;
   added_by: string | null;
+  has_summary?: boolean;
   lesson_title?: string;
   lesson_id?: number;
 }
@@ -93,7 +94,7 @@ export interface PathInput {
   show_on_home?: boolean; modules?: string[];
 }
 export type CourseStatus = "todo" | "doing" | "done";
-export interface AcademyCourse {
+export interface AcademyCourse extends Overlaid {
   slug: string; title: string; group: string; order: number | null; hours: number | null; lessons: number;
   quizzes: number; badge: boolean; level: string; summary: string; why: string; prereqs: string; url: string;
   outline: { title: string; lessons: string[] }[]; status: CourseStatus;
@@ -108,7 +109,7 @@ export interface QAItem {
 }
 export interface CourseQA { slug: string; title: string; lessons: string[]; items: QAItem[]; job: JobState }
 
-export interface Cert {
+export interface Cert extends Overlaid {
   name: string; issuer: string; tier: string; url: string; code: string; kind: string; price: string; duration: string;
   format: string; validity: string; access: string; focus: string; fit: string; notes: string; top_pick: boolean;
 }
@@ -117,7 +118,7 @@ export interface CertFind {
   price: string; format: string; focus: string; fit: string; url: string; verified: boolean;
 }
 export interface Certifications {
-  checked_on: string; tiers: { id: string; title: string; summary: string }[]; certs: Cert[];
+  checked_on: string; tiers: { id: string; title: string; summary: string }[]; certs: Cert[]; removed: number;
   refresh: JobState & { summary: string; items: CertFind[]; dropped: number };
 }
 export interface JobPosting {
@@ -132,7 +133,7 @@ export interface Jobs extends JobState {
 }
 export interface Academy {
   base_url: string; checked_on: string; groups: { id: string; title: string; summary: string }[];
-  courses: AcademyCourse[]; track: { hours: number; courses: number; lessons: number }; path_id: number | null;
+  courses: AcademyCourse[]; track: { hours: number; courses: number; lessons: number }; path_id: number | null; removed: number;
 }
 
 export interface AIUpdate {
@@ -146,15 +147,17 @@ export interface AIUpdates {
 
 // Voice (ASR + NLU), per language
 export interface HVSkill { name: string; need: number; why: string; level: number }
-export interface HVCourse { id: string; title: string; provider: string; url: string; phase: string; kind: string; level: string; cost: string; covers: string; top_pick: boolean; status: CourseStatus }
+/** Fields added to built-in catalog items by the edit layer. */
+export interface Overlaid { _key?: string; _edited?: boolean }
+export interface HVCourse extends Overlaid { id: string; title: string; provider: string; url: string; phase: string; kind: string; level: string; cost: string; covers: string; top_pick: boolean; status: CourseStatus }
 export interface HVModule {
   slug: string; side: string; title: string; summary: string; url: string; refs: string[]; lessons: number;
   outline: { title: string; lessons: string[] }[]; qa: { total: number; known: number; review: number };
   path_progress: { done: number; total: number } | null;
 }
-export interface HVModel { name: string; org: string; kind: string; url: string; paper: string; licence: string; size: string; on_device: string; result: string; notes: string; top_pick: boolean }
-export interface HVDataset { name: string; kind: string; url: string; paper: string; licence: string; size: string; what: string; use: string }
-export interface HVPaper { id: string; title: string; year: number; topic: string; url: string; why: string; top_pick: boolean }
+export interface HVModel extends Overlaid { name: string; org: string; kind: string; url: string; paper: string; licence: string; size: string; on_device: string; result: string; notes: string; top_pick: boolean }
+export interface HVDataset extends Overlaid { name: string; kind: string; url: string; paper: string; licence: string; size: string; what: string; use: string }
+export interface HVPaper extends Overlaid { id: string; title: string; year: number; topic: string; url: string; why: string; top_pick: boolean }
 export interface HVPhase { id: string; title: string; goal: string; steps: string[]; outputs: string[]; owners: string; pitfalls: string[] }
 export interface HVTesting { id: string; title: string; metrics: [string, string, string][]; slices: string[] }
 export interface HVVariability { dimension: string; values: string[]; why: string; how: string }
@@ -164,7 +167,7 @@ type IdTitle = { id: string; title: string };
 export interface VoiceLang { code: string; name: string; title: string }
 export interface UtterStyleInfo { id: string; label: string; help: string }
 export interface VoiceData {
-  code: string; name: string; title: string; intro: string; qa_sources: string;
+  code: string; name: string; title: string; intro: string; qa_sources: string; removed: Record<"models" | "datasets" | "papers" | "courses", number>;
   utter_styles: UtterStyleInfo[]; utter_default: UtterParams;
   checked_on: string; competencies: { id: string; title: string; skills: HVSkill[] }[];
   phases: (IdTitle & { summary: string })[]; courses: HVCourse[]; sides: IdTitle[]; modules: HVModule[];
@@ -193,8 +196,10 @@ export interface HomeModule {
   minutes: number; resources_status: string;
 }
 
+export interface HomeCard { id: string; label: string; on: boolean }
 export interface Home {
   user: { name: string };
+  layout: HomeCard[];
   paths: PathSummary[];
   hidden_paths: number;
   my_links: MyLink[];
@@ -244,6 +249,19 @@ export interface Providers {
 
 export interface Me { id: number; username: string; name: string; role: "admin" | "user"; is_admin: boolean; default_password: boolean }
 
+// ---------------------------------------------------------------- paper summaries & tech news
+export interface PaperRef { resource_id?: number; url?: string; title?: string }
+export interface PaperSummaryT {
+  tldr: string; problem: string; method: string; results: string[]; limitations: string[]; why_it_matters: string;
+  read_full_text: boolean; written_at?: string; edited?: boolean;
+}
+export interface PaperSummaryOut { resource_id: number; title: string; url: string; summary: PaperSummaryT | null; job: JobState }
+export interface NewsItem { topic: string; title: string; source: string; date: string; summary: string; why_it_matters: string; url: string; verified: boolean }
+export interface NewsDigest extends JobState {
+  headline: string; items: NewsItem[]; dropped: number; days: number; topics: string[]; all_topics: { id: string; label: string }[];
+}
+export interface LiveItem { id: string; title: string; url: string; discussion: string; site: string; points: number; comments: number; at: string }
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -275,9 +293,24 @@ type Ok = { ok: boolean };
 
 export const api = {
   me: () => get<Me>("/api/auth/me"),
+  editItem: (scope: string, key: string, fields: Record<string, string>) => post<Ok>("/api/content/edit", { scope, key, fields }),
+  deleteItem: (scope: string, key: string) => post<Ok & { for_everyone: boolean }>("/api/content/delete", { scope, key }),
+  resetItems: (scope: string) => post<Ok>("/api/content/reset", { scope }),
+  removeJobItem: (job: string, url: string) => post<Ok>("/api/content/job-item/remove", { job, url }),
+  editLessonNotes: (id: number, content_md: string) => req<Lesson>("PUT", `/api/lessons/${id}/content`, { content_md }),
+  deleteLessonNotes: (id: number) => req<Lesson>("DELETE", `/api/lessons/${id}/content`),
+  paperSummary: (ref: PaperRef) => post<PaperSummaryOut>("/api/papers/summary/lookup", ref),
+  summarizePaper: (ref: PaperRef & { context?: string }) => post<PaperSummaryOut>("/api/papers/summary", ref),
+  editPaperSummary: (resource_id: number, s: PaperSummaryT) => req<PaperSummaryOut>("PUT", "/api/papers/summary", { ...s, resource_id }),
+  deletePaperSummary: (resource_id: number) => del(`/api/papers/summary/${resource_id}`),
+  news: () => get<NewsDigest>("/api/news"),
+  refreshNews: (b: { days?: number; topics?: string[] }) => post<NewsDigest>("/api/news/refresh", b),
+  hideNews: (url: string, hidden = true) => post<Ok>("/api/news/hide", { url, hidden }),
+  liveNews: (limit = 20) => get<{ items: LiveItem[]; error: string | null }>(`/api/news/live?limit=${limit}`),
   login: (username: string, password: string) => post<Me>("/api/auth/login", { username, password }),
   logout: () => post<Ok>("/api/auth/logout"),
   changePassword: (current: string, next: string) => post<Me>("/api/auth/password", { current, new: next }),
+  homeLayout: (cards: { id: string; on: boolean }[]) => req<HomeCard[]>("PUT", "/api/home/layout", cards),
   home: (pathId?: number) => get<Home>(`/api/home${pathId ? `?path_id=${pathId}` : ""}`),
   focus: (lessonId: number) => post<{ text: string }>(`/api/home/focus/${lessonId}`),
   paths: () => get<PathSummary[]>("/api/paths"),
@@ -344,6 +377,8 @@ export const api = {
   refreshUpdates: (days: number) => post<AIUpdates>("/api/claude-academy/updates/refresh", { days }),
   courseQA: (slug: string) => get<CourseQA>(`/api/claude-academy/qa/${slug}`),
   generateQA: (slug: string, per_lesson: number) => post<CourseQA>(`/api/claude-academy/qa/${slug}/generate`, { per_lesson }),
+  editQA: (id: number, b: { question: string; answer_md: string; key_points: string[] }) => patch<QAItem>(`/api/claude-academy/qa/items/${id}`, b),
+  deleteQA: (id: number) => del(`/api/claude-academy/qa/items/${id}`),
   setQAStatus: (id: number, status: QAStatus) => patch<QAItem>(`/api/claude-academy/qa/items/${id}`, { status }),
 
   // Career
@@ -362,6 +397,8 @@ export const api = {
   voiceResearch: (lang: string) => get<HVResearch>(`/api/voice/${lang}/research`),
   refreshVoiceResearch: (lang: string, months: number) => post<HVResearch>(`/api/voice/${lang}/research/refresh`, { months }),
   utterances: (lang: string) => get<Utterances>(`/api/voice/${lang}/utterances`),
+  editUtterance: (lang: string, old: string, text: string | null) =>
+    post<Utterances>(`/api/voice/${lang}/utterances/edit`, text === null ? { old } : { old, text }),
   generateUtterances: (lang: string, b: UtterParams) => post<Utterances>(`/api/voice/${lang}/utterances/generate`, b),
 
   // Interview companion

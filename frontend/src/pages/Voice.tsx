@@ -5,6 +5,8 @@ import {
   api, type CourseStatus, type VoiceData as HV, type HVCourse, type HVModule, type UtterParams, type UtterStyle,
   type UtterStyleInfo, type Utterance,
 } from "../api";
+import { ItemActions, RemovedNote, RemoveFound } from "../components/EditItem";
+import { PaperSummary } from "../components/PaperSummary";
 import ReviewQA from "../components/ReviewQA";
 import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
 
@@ -214,6 +216,7 @@ function Learn({ d }: { d: HV }) {
     <>
       <Section id="hv-courses" title="Courses, in order"
         intro="Free courses and docs from foundations to the assistant platform. Top picks are the ones to do first.">
+        <RemovedNote scope={`voice.${d.code}.courses`} count={d.removed.courses} edited={d.courses.some((c) => c._edited)} queryKey={[QK, d.code]} />
         <div className="card p-5 flex flex-col gap-2">
           <ProgressBar pct={Math.round((done / d.courses.length) * 100)} label={`${done} of ${d.courses.length} done`} />
           <p className="text-sm text-muted">{done} of {d.courses.length} courses done</p>
@@ -222,7 +225,7 @@ function Learn({ d }: { d: HV }) {
           <div key={p.id} className="flex flex-col gap-2">
             <h3 className="font-semibold text-lg">{p.title} <span className="text-muted font-normal text-sm">· {p.summary}</span></h3>
             <ul className="flex flex-col gap-2">
-              {d.courses.filter((c) => c.phase === p.id).map((c) => <li key={c.id}><CourseRow c={c} /></li>)}
+              {d.courses.filter((c) => c.phase === p.id).map((c) => <li key={c.id}><CourseRow c={c} code={d.code} /></li>)}
             </ul>
           </div>
         ))}
@@ -254,7 +257,7 @@ function Learn({ d }: { d: HV }) {
   );
 }
 
-function CourseRow({ c }: { c: HVCourse }) {
+function CourseRow({ c, code }: { c: HVCourse; code: string }) {
   const set = useSetState();
   const id = `cs-${c.id}`;
   return (
@@ -269,6 +272,10 @@ function CourseRow({ c }: { c: HVCourse }) {
         onChange={(e) => set.mutate({ kind: "course", key: c.id, value: e.target.value })}>
         <option value="todo">To do</option><option value="doing">In progress</option><option value="done">Done</option>
       </select>
+      <ItemActions scope={`voice.${code}.courses`} itemKey={c._key ?? c.id} title={c.title} queryKey={[QK, code]} fields={[
+        { name: "title", label: "Title", value: c.title }, { name: "provider", label: "Provider", value: c.provider },
+        { name: "level", label: "Level", value: c.level }, { name: "cost", label: "Cost", value: c.cost },
+        { name: "covers", label: "What it covers", value: c.covers, long: true }]} />
     </div>
   );
 }
@@ -326,6 +333,7 @@ function ModelsData({ d }: { d: HV }) {
         <label className="flex items-center gap-2 text-sm font-semibold min-h-[36px]">
           <input type="checkbox" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} className="w-4 h-4" /> Top picks only
         </label>
+        <RemovedNote scope={`voice.${d.code}.models`} count={d.removed.models} edited={d.models.some((m) => m._edited)} queryKey={[QK, d.code]} />
         {d.model_kinds.map((k) => {
           const list = d.models.filter((m) => m.kind === k.id && (!topOnly || m.top_pick));
           if (!list.length) return null;
@@ -335,7 +343,13 @@ function ModelsData({ d }: { d: HV }) {
               <ul className="grid gap-3 md:grid-cols-2">
                 {list.map((m) => (
                   <li key={m.name} className="card p-4 flex flex-col gap-1.5">
-                    <p className="font-semibold"><Ext href={m.url}>{m.name}</Ext> {m.top_pick && <Top />}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="font-semibold flex-1"><Ext href={m.url}>{m.name}</Ext> {m.top_pick && <Top />}</p>
+                      <ItemActions scope={`voice.${d.code}.models`} itemKey={m._key ?? m.name} title={m.name} queryKey={[QK, d.code]} fields={[
+                        { name: "org", label: "Organisation", value: m.org }, { name: "size", label: "Size", value: m.size },
+                        { name: "licence", label: "Licence", value: m.licence }, { name: "result", label: "Result", value: m.result, long: true },
+                        { name: "notes", label: "Notes", value: m.notes, long: true }]} />
+                    </div>
                     <p className="text-sm text-muted">{m.org}{m.size && ` · ${m.size}`}{m.licence && ` · ${m.licence}`}</p>
                     {m.result && <p className="text-sm"><span className="font-semibold">Result: </span>{m.result}</p>}
                     <p className="text-sm text-body">{m.notes}</p>
@@ -352,13 +366,19 @@ function ModelsData({ d }: { d: HV }) {
       </Section>
       <Section id="hv-datasets" title="Datasets"
         intro='Datasets marked "gated" need you to sign in to Hugging Face and accept their terms before downloading.'>
+        <RemovedNote scope={`voice.${d.code}.datasets`} count={d.removed.datasets} edited={d.datasets.some((x) => x._edited)} queryKey={[QK, d.code]} />
         {d.dataset_kinds.map((k) => (
           <div key={k.id} className="flex flex-col gap-2">
             <h3 className="font-semibold text-lg">{k.title}</h3>
             <ul className="grid gap-3 md:grid-cols-2">
               {d.datasets.filter((x) => x.kind === k.id).map((x) => (
                 <li key={x.name} className="card p-4 flex flex-col gap-1.5">
-                  <p className="font-semibold"><Ext href={x.url}>{x.name}</Ext></p>
+                  <div className="flex items-start gap-2">
+                    <p className="font-semibold flex-1"><Ext href={x.url}>{x.name}</Ext></p>
+                    <ItemActions scope={`voice.${d.code}.datasets`} itemKey={x._key ?? x.name} title={x.name} queryKey={[QK, d.code]} fields={[
+                      { name: "size", label: "Size", value: x.size }, { name: "licence", label: "Licence", value: x.licence },
+                      { name: "what", label: "What it is", value: x.what, long: true }, { name: "use", label: "Use", value: x.use, long: true }]} />
+                  </div>
                   {(x.size || x.licence) && <p className="text-sm text-muted">{[x.size, x.licence].filter(Boolean).join(" · ")}</p>}
                   <p className="text-sm text-body">{x.what}</p>
                   <p className="text-sm"><span className="font-semibold">Use: </span>{x.use}</p>
@@ -392,6 +412,7 @@ function Papers({ d }: { d: HV }) {
           <input type="checkbox" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} className="w-4 h-4" /> Top picks only
         </label>
       </div>
+      <RemovedNote scope={`voice.${d.code}.papers`} count={d.removed.papers} edited={d.papers.some((p) => p._edited)} queryKey={[QK, d.code]} />
       {d.paper_topics.filter((t) => topic === "all" || t.id === topic).map((t) => list(t.id).length > 0 && (
         <div key={t.id} className="flex flex-col gap-2">
           <h3 className="font-semibold text-lg">{t.title}</h3>
@@ -399,11 +420,14 @@ function Papers({ d }: { d: HV }) {
             {list(t.id).map((p) => (
               <li key={p.id} className="card p-4 flex gap-3">
                 <Icon.paper className="text-muted shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <p className="font-semibold"><Ext href={p.url}>{p.title}</Ext> {p.top_pick && <Top />}</p>
                   <p className="text-xs text-muted">{p.year} · arXiv {p.id}</p>
                   <p className="text-sm text-body">{p.why}</p>
+                  <div className="pt-1.5"><PaperSummary paper={{ url: p.url, title: p.title }} context={`${d.name} voice assistant ASR/NLU`} /></div>
                 </div>
+                <ItemActions scope={`voice.${d.code}.papers`} itemKey={p._key ?? p.id} title={p.title} queryKey={[QK, d.code]} fields={[
+                  { name: "title", label: "Title", value: p.title }, { name: "why", label: "Why read it", value: p.why, long: true }]} />
               </li>
             ))}
           </ul>
@@ -672,9 +696,31 @@ function Generator({ d: info }: { d: HV }) {
 }
 
 function UtterRow({ u, label, lang }: { u: Utterance; label: string; lang: string }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState<string | null>(null);
+  const edit = useMutation({
+    mutationFn: (t: string | null) => api.editUtterance(lang, u.text, t),
+    onSuccess: (d) => { qc.setQueryData(["utterances", lang], d); setText(null); },
+  });
   return (
     <li className="py-2.5 flex flex-col gap-1">
-      <p className="text-lg" lang={lang === "hi" && u.style === "romanized" ? "hi-Latn" : lang}>{u.text}</p>
+      {text === null ? (
+        <div className="flex items-start gap-2">
+          <p className="text-lg flex-1" lang={lang === "hi" && u.style === "romanized" ? "hi-Latn" : lang}>{u.text}</p>
+          <button type="button" className="icon-btn" aria-label={`Edit: ${u.text}`} title="Edit" onClick={() => setText(u.text)}><Icon.edit size={15} /></button>
+          <button type="button" className="icon-btn" aria-label={`Delete: ${u.text}`} title="Delete" disabled={edit.isPending}
+            onClick={() => edit.mutate(null)}><Icon.trash size={15} /></button>
+        </div>
+      ) : (
+        <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) edit.mutate(text.trim()); }}>
+          <label htmlFor={`ut-${u.text}`} className="sr-only">Utterance text</label>
+          <input id={`ut-${u.text}`} className="input flex-1 min-w-[220px]" value={text} autoFocus onChange={(e) => setText(e.target.value)} />
+          <button type="submit" className="btn-primary btn-sm" disabled={edit.isPending}>Save</button>
+          <button type="button" className="btn-outline btn-sm" onClick={() => setText(null)}>Cancel</button>
+          <p className="w-full text-xs text-muted">Slots whose values are no longer in the text are removed.</p>
+        </form>
+      )}
+      {edit.isError && <ErrorBox error={edit.error} />}
       <p className="text-xs text-muted flex flex-wrap gap-1.5 items-center">
         <Chip>{label}</Chip><Chip>{u.tone}</Chip>
         {u.slots.map((s) => <Chip key={s.name + s.value} cls="bg-accent-soft text-accent-dark">{s.name}: {s.value}</Chip>)}
@@ -735,9 +781,12 @@ function WhatsNew({ d: info }: { d: HV }) {
       <ul className="flex flex-col gap-3">
         {items.map((i) => (
           <li key={i.url} className="card p-4 flex flex-col gap-1.5">
-            <p className="font-semibold"><Ext href={i.url}>{i.title}</Ext>{" "}
-              <Chip>{i.kind}</Chip>{i.is_new && <> <Chip cls="bg-accent-soft text-accent-dark">New</Chip></>}
-              {!i.verified && <> <Chip cls="bg-pp-bg text-pp-fg">Link unverified</Chip></>}</p>
+            <div className="flex items-start gap-2">
+              <p className="font-semibold flex-1"><Ext href={i.url}>{i.title}</Ext>{" "}
+                <Chip>{i.kind}</Chip>{i.is_new && <> <Chip cls="bg-accent-soft text-accent-dark">New</Chip></>}
+                {!i.verified && <> <Chip cls="bg-pp-bg text-pp-fg">Link unverified</Chip></>}</p>
+              <RemoveFound job={`${lang === "hi" ? "hv" : "ev"}-research`} url={i.url} title={i.title} queryKey={["voice-research", lang]} />
+            </div>
             <p className="text-xs text-muted">{[i.org, i.date && fmtDay(i.date), i.licence].filter(Boolean).join(" · ")}</p>
             <p className="text-sm text-body">{i.summary}</p>
             {i.result && <p className="text-sm"><span className="font-semibold">Result: </span>{i.result}</p>}

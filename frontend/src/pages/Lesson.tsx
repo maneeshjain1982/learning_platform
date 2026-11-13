@@ -126,7 +126,7 @@ export default function LessonPage() {
               {videos.map((v) => <VideoCard key={v.id} r={v} footer={<Detach lessonId={l.id} resourceId={v.id} />} />)}
             </div>
           )}
-          {papers.map((p) => <PaperRow key={p.id} r={p} footer={<Detach lessonId={l.id} resourceId={p.id} />} />)}
+          {papers.map((p) => <PaperRow key={p.id} r={p} context={l.title} footer={<Detach lessonId={l.id} resourceId={p.id} />} />)}
           {l.resources.length === 0 && (
             <p className="text-sm text-muted">
               {l.module.resources_status === "searching" ? "The agents are searching for videos and papers for this module…"
@@ -183,17 +183,48 @@ function VideoEmbed({ videoId, title }: { videoId: string; title: string }) {
 }
 
 function LessonNotes({ l, onWrite, writeError }: { l: Lesson; onWrite: (force: boolean) => void; writeError: unknown }) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<string | null>(null);
+  const done = (d: Lesson) => { qc.setQueryData(["lesson", l.id], d); setDraft(null); };
+  const save = useMutation({ mutationFn: () => api.editLessonNotes(l.id, draft ?? ""), onSuccess: done });
+  const remove = useMutation({ mutationFn: () => api.deleteLessonNotes(l.id), onSuccess: done });
+  if (draft !== null) {
+    return (
+      <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) save.mutate(); }}>
+        <label htmlFor="notes-md" className="label">Lesson notes (Markdown)</label>
+        <textarea id="notes-md" className="input font-mono text-sm min-h-[420px]" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        {save.isError && <ErrorBox error={save.error} />}
+        <div className="flex gap-2">
+          <button type="submit" className="btn-primary btn-sm" disabled={save.isPending || !draft.trim()}>Save notes</button>
+          <button type="button" className="btn-outline btn-sm" onClick={() => setDraft(null)}>Cancel</button>
+        </div>
+      </form>
+    );
+  }
   if (l.content_md) {
     return (
       <article className="flex flex-col gap-3">
         <Markdown>{l.content_md}</Markdown>
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <span>Notes written by the Lesson Writer agent. Check important facts against the sources below.</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span>Check important facts against the sources below.</span>
+          <button type="button" className="text-accent font-semibold hover:underline" onClick={() => setDraft(l.content_md ?? "")}>Edit</button>
           <button type="button" className="text-accent font-semibold hover:underline" disabled={l.notes_status === "writing"} onClick={() => onWrite(true)}>
             {l.notes_status === "writing" ? "Rewriting…" : "Rewrite"}
           </button>
+          <button type="button" className="text-accent font-semibold hover:underline" disabled={remove.isPending}
+            onClick={() => { if (confirm("Delete these lesson notes?")) remove.mutate(); }}>Delete</button>
         </div>
+        {remove.isError && <ErrorBox error={remove.error} />}
       </article>
+    );
+  }
+  if (l.notes_status === "deleted") {
+    return (
+      <div className="card p-6 flex flex-wrap items-center gap-3">
+        <p className="text-body flex-1 min-w-[200px]">No notes for this lesson.</p>
+        <button type="button" className="btn-outline btn-sm" onClick={() => setDraft("")}>Write my own</button>
+        <button type="button" className="btn-primary btn-sm" onClick={() => onWrite(true)}>Have the agent write them</button>
+      </div>
     );
   }
   if (l.notes_status === "writing" || l.notes_status === "none") {

@@ -4,13 +4,51 @@ A personal learning portal. Describe what you want to learn; a team of LLM agent
 learning path, writes lesson notes, finds YouTube videos and research papers, and keeps a personalized home page.
 An **Ask LLM** tutor is available on every lesson.
 
-Runs locally for one person. LLM calls go through **LLM_Bridge** (`D:\Y26\work_dir\LLM_Bridge`) using your
+Runs locally. LLM calls go through **LLM_Bridge** (`D:\Y26\work_dir\LLM_Bridge`) using your
 signed-in Claude Code CLI, so **no API keys** are needed. See [PLAN.md](PLAN.md) for the design.
+
+## Sign in
+
+There are two accounts. Each has its own home page, paths, progress, links, notes and settings.
+
+| Account | Username / password | Sees |
+|---|---|---|
+| Admin | `admin` / `admin` | Everything, including **Career** (certifications, hot jobs) and **Upskill Prep** |
+| User | `user` / `user` | Learning, Tech News and Library. Career, jobs and Upskill Prep are hidden and blocked by the server |
+
+Change a password in **Settings**. The data from before sign-in was added belongs to the admin; the user account starts
+with its own copy of the starter paths. Review questions and paper summaries are shared; marks are per account.
 
 ## Menu
 
-The top menu has **Home**, **Learning** (My paths, Claude learning, Voice ASR/NLU, Upskill Prep, New goal), **Career**
-and **Library** (Discover, My links). On a phone, the groups open inside the ☰ menu.
+The top menu has **Home**, **Learning** (My paths, Claude learning, Voice ASR/NLU, Upskill Prep, New goal),
+**Tech News**, **Career** (admin) and **Library** (Discover, My links). The round button on the right shows who is
+signed in, with Settings and Sign out. On a phone, the groups open inside the ☰ menu.
+
+## Home
+
+A short page of cards: Continue learning, This week, My paths, Tech News, Videos & papers for the current module,
+My links and (admin) Hot jobs. **Customize** turns cards on or off and changes their order, per account.
+
+## Tech News
+
+**Tech News** shows live Hacker News headlines (public API, no key) next to your own digest. Pick topics (AI & LLMs,
+Agents & tools, Speech & NLP, Developer tools, Cloud, Mobile, Security, Chips) and a time range, then **Get my digest**:
+the LLM searches the web, writes one or two lines per story and every link is checked. **Hide** removes a story.
+
+## Paper summaries
+
+Every paper (lesson pages, Discover, Voice papers) has **Summarize**. The LLM reads the paper on arXiv (full text when
+it can open it, otherwise the abstract, and says which) and writes a TL;DR, problem, method, key results with numbers,
+limitations and why it matters. Summaries are saved and shared; the admin can **Edit**, **Regenerate** or **Delete** them.
+
+## Editing and deleting content
+
+- Your own content: paths, modules, lessons, links, lesson notes (**Edit** / **Delete** under the notes), generated
+  utterances, and items found by research runs (news, certification changes, jobs, What's new) can be edited or removed.
+- Built-in lists (Voice models, datasets, papers and courses; certifications; Claude courses): the admin can edit or
+  delete an item for every account; the user account can hide items for itself. **Restore original** undoes it.
+- Review questions: any account marks them; the admin can edit or delete them.
 
 ## Run it
 
@@ -56,7 +94,7 @@ http://localhost:5173 (API calls are proxied to port 8000).
 
 Coursera and Udemy are **search links** (no public API). Everything is stored in `data/study.db` (SQLite).
 
-## Upskill Prep
+## Upskill Prep (admin)
 
 **Upskill Prep** (under **Learning** in the top menu) holds your prep companions for a target role. Click **New Upskill Prep companion** and fill in:
 
@@ -111,7 +149,7 @@ Each language has the same sections:
 
 To add another language, add a content module like `backend/english_voice.py` and register it in `backend/voice_langs.py`.
 
-## Career
+## Career (admin)
 
 - **Certifications:** a researched list of Agentic AI and Generative AI certifications (Anthropic, Google Cloud, Microsoft, NVIDIA, AWS, Databricks, plus courses with certificates), grouped by level, with price, format and what each one tests. **Refresh** looks for new certifications and changes to these.
 - **Hot jobs:** set the roles and location, then **Find jobs**. The LLM finds open postings from the last 30 days, breaks down each job description, and lists the skills asked for most. **Prepare in Upskill Prep** opens Upskill Prep with the role, company and JD filled in.

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { PaperSummary } from "./PaperSummary";
 import { api, type Resource, type Step } from "../api";
 
 // ---------------------------------------------------------------- icons (stroke SVG)
@@ -103,7 +104,7 @@ export function VideoCard({ r, footer }: { r: Resource; footer?: ReactNode }) {
 
 // ---------------------------------------------------------------- paper row
 
-export function PaperRow({ r, footer }: { r: Resource; footer?: ReactNode }) {
+export function PaperRow({ r, footer, context }: { r: Resource; footer?: ReactNode; context?: string }) {
   const meta = [r.author, r.year, r.citations ? `${r.citations.toLocaleString()} citations` : null].filter(Boolean).join(" · ");
   return (
     <article className="card p-4 flex gap-3">
@@ -118,6 +119,7 @@ export function PaperRow({ r, footer }: { r: Resource; footer?: ReactNode }) {
         {meta && <p className="text-[13px] text-muted">{meta}</p>}
         {r.why && <p className="text-[13px] text-body"><strong className="text-ink">Why:</strong> {r.why}</p>}
         {footer && <div className="flex items-center gap-2 pt-1 flex-wrap">{footer}</div>}
+        <PaperSummary paper={{ resource_id: r.id }} has={r.has_summary} context={context} />
       </div>
       <SaveButton r={r} />
     </article>
@@ -251,3 +253,19 @@ export const storage = {
     try { if (v === null) localStorage.removeItem(key); else localStorage.setItem(key, v); } catch { /* ignore */ }
   },
 };
+
+// ---------------------------------------------------------------- dates
+
+export function ago(isoTime: string) {
+  const mins = Math.round((Date.now() - new Date(isoTime).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
+export function fmtDay(d: string) {
+  const t = new Date(`${d}T00:00:00`);
+  return isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}

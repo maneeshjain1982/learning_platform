@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type Cert, type CertFind, type JobPosting, type JobsParams } from "../api";
+import { ItemActions, RemovedNote, RemoveFound } from "../components/EditItem";
 import { ErrorBox, Icon, Thinking } from "../components/ui";
 
 function ago(isoTime: string) {
@@ -105,6 +106,7 @@ function Certifications() {
         </label>
       </div>
 
+      <RemovedNote scope="career.certs" count={d.removed} edited={d.certs.some((c) => c._edited)} queryKey={["certs"]} />
       {tiers.map((t) => {
         const list = d.certs.filter((c) => c.tier === t.id && (!topOnly || c.top_pick));
         if (!list.length) return null;
@@ -130,6 +132,13 @@ function CertCard({ c }: { c: Cert }) {
         <span className="font-semibold text-muted">{c.issuer}</span>
         {c.top_pick && <Chip cls="bg-ok-soft text-ok-dark">Top pick</Chip>}
         {c.access !== "Open to anyone" && <Chip cls="bg-pp-bg text-pp-fg">Restricted</Chip>}
+        <span className="ml-auto">
+          <ItemActions scope="career.certs" itemKey={c._key ?? c.name} title={c.name} queryKey={["certs"]} fields={[
+            { name: "price", label: "Price", value: c.price }, { name: "duration", label: "Duration", value: c.duration },
+            { name: "validity", label: "Validity", value: c.validity }, { name: "format", label: "Format", value: c.format, long: true },
+            { name: "focus", label: "What it tests", value: c.focus, long: true }, { name: "fit", label: "For you", value: c.fit, long: true },
+            { name: "notes", label: "Note", value: c.notes, long: true }]} />
+        </span>
       </div>
       <h3 className="font-semibold text-lg leading-snug">
         <a href={c.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">
@@ -154,6 +163,7 @@ function CertFindRow({ c }: { c: CertFind }) {
         <span className="font-semibold text-muted">{c.issuer}{c.code && ` · ${c.code}`}</span>
         {c.price && <Chip>{c.price}</Chip>}
         {!c.verified && <Chip cls="bg-[#F1F3F6] text-muted">Link not verified</Chip>}
+        <span className="ml-auto"><RemoveFound job="certs" url={c.url} title={c.name} queryKey={["certs"]} /></span>
       </div>
       <a href={c.url} target="_blank" rel="noreferrer" className="font-semibold hover:text-accent">{c.name}</a>
       {c.what_changed && <p className="text-sm text-body">{c.what_changed}</p>}
@@ -271,6 +281,7 @@ function JobCard({ j }: { j: JobPosting }) {
         {j.posted && <span className="text-muted">Posted {fmtDay(j.posted)}</span>}
         {j.why_hot && <Chip cls="bg-ok-soft text-ok-dark">{j.why_hot}</Chip>}
         {!j.verified && <Chip cls="bg-[#F1F3F6] text-muted">Link not verified</Chip>}
+        <span className="ml-auto"><RemoveFound job="jobs" url={j.url} title={j.title} queryKey={["jobs"]} /></span>
       </div>
       <h3 className="font-semibold text-lg leading-snug">
         <a href={j.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">

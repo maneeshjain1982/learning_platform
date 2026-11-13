@@ -1,23 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api, type Home as HomeT, type Run } from "../api";
-import { useAsk } from "../components/AskLLM";
-import { MyLinksSection } from "../components/Manage";
-import { AgentSteps, ErrorBox, Icon, LinkCard, PaperRow, ProgressBar, Ring, Thinking, VideoCard, storage } from "../components/ui";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { api, type Home as HomeT, type HomeCard } from "../api";
+import { useMe } from "../components/Auth";
+import { ErrorBox, Icon, ProgressBar, Ring, Thinking, storage } from "../components/ui";
+import { useNews } from "./News";
+
+type Active = NonNullable<HomeT["active"]>;
 
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
+/** Grid width of each card on wide screens (12 columns). */
+const SPAN: Record<string, string> = {
+  continue: "lg:col-span-8", week: "lg:col-span-4", paths: "lg:col-span-12", news: "lg:col-span-7",
+  picks: "lg:col-span-5", links: "lg:col-span-12", jobs: "lg:col-span-12",
+};
+
 export default function Home() {
   const qc = useQueryClient();
+  const me = useMe();
   const [pathId, setPathId] = useState<number | undefined>(() => Number(storage.get("home:path")) || undefined);
+  const [customizing, setCustomizing] = useState(false);
   const home = useQuery({ queryKey: ["home", pathId], queryFn: () => api.home(pathId) });
-  const active = home.data?.active;
+  const active = home.data?.active ?? null;
 
-  // A running agent job on this path: poll until it finishes, then refresh the page data.
+  // A running agent job on this path: poll until it finishes, then refresh.
   const runId = active?.last_run?.status === "running" ? active.last_run.id : null;
   const run = useQuery({
     queryKey: ["run", runId], queryFn: () => api.run(runId!), enabled: !!runId,
@@ -27,248 +37,329 @@ export default function Home() {
     if (run.data && run.data.status !== "running") qc.invalidateQueries({ queryKey: ["home"] });
   }, [run.data?.status, qc]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const choose = (id: number) => { setPathId(id); storage.set("home:path", String(id)); };
-
-  if (home.isLoading) return <main className="max-w-[1280px] mx-auto w-full p-8"><Thinking label="Loading your home page…" /></main>;
-  if (home.isError) return <main className="max-w-[1280px] mx-auto w-full p-8"><ErrorBox error={home.error} onRetry={() => home.refetch()} /></main>;
+  if (home.isLoading) return <Shell><Thinking label="Loading…" /></Shell>;
+  if (home.isError) return <Shell><ErrorBox error={home.error} onRetry={() => home.refetch()} /></Shell>;
   const data = home.data!;
-  if (!active) return <EmptyHome data={data} />;
+  const choose = (id: number) => { setPathId(id); storage.set("home:path", String(id)); };
+  const name = data.user.name && !["Learner", "Admin", "User"].includes(data.user.name) ? `, ${data.user.name}` : "";
+  const cards = data.layout.filter((c) => c.on);
+
+  const render = (c: HomeCard): ReactNode => {
+    switch (c.id) {
+      case "continue": return <ContinueCard active={active} />;
+      case "week": return active ? <WeekCard week={active.week} /> : null;
+      case "paths": return <PathsCard data={data} activeId={active?.id} onChoose={choose} />;
+      case "news": return <NewsCard />;
+      case "picks": return active?.current_module ? <PicksCard active={active} running={!!runId} /> : null;
+      case "links": return <LinksCard data={data} />;
+      case "jobs": return me.is_admin ? <JobsCard /> : null;
+      default: return null;
+    }
+  };
 
   return (
-    <main className="max-w-[1280px] mx-auto w-full px-4 sm:px-8 pt-8 pb-28 flex flex-col gap-8">
-      <section className="flex flex-wrap gap-6 items-stretch">
-        <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">
-          <p className="text-muted font-medium">{active.title} · {active.done} of {active.lessons} lessons done</p>
-          <h1 className="h-display text-3xl sm:text-4xl leading-tight">
-            {greeting()}{data.user.name && data.user.name !== "Learner" ? `, ${data.user.name}` : ""}.{" "}
-            {active.continue ? <>Today's focus is <span className="text-accent">{active.continue.title.toLowerCase()}</span>.</> : "You've finished this path!"}
-          </h1>
-          {active.continue && <FocusNote lessonId={active.continue.lesson_id} initial={active.focus_note} />}
-          {active.continue && <ContinueCard c={active.continue} />}
+    <Shell>
+      <header className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[240px]">
+          <h1 className="h-display text-3xl sm:text-[34px] leading-tight">{greeting()}{name}</h1>
+          {active && <p className="text-muted mt-1">{active.title} · {active.pct}% complete</p>}
         </div>
-        <WeekCard week={active.week} />
-      </section>
-
-      <section aria-labelledby="paths-h" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="paths-h" className="h-display text-[22px]">Your learning paths</h2>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/paths" className="btn-outline"><Icon.edit size={16} /> Manage paths</Link>
-            <Link to="/setup" className="btn-outline">+ New learning goal</Link>
-          </div>
-        </div>
-        {data.hidden_paths > 0 && (
-          <p className="text-sm text-muted -mt-2">
-            {data.hidden_paths} path{data.hidden_paths > 1 ? "s are" : " is"} hidden from this page. <Link to="/paths" className="text-accent font-semibold hover:underline">Show again</Link>
-          </p>
-        )}
-        <div role="tablist" aria-label="Learning paths" className="flex flex-wrap gap-2">
-          {data.paths.map((p) => (
-            <button key={p.id} type="button" role="tab" aria-selected={p.id === active.id} onClick={() => choose(p.id)}
-              className={`pill ${p.id === active.id ? "bg-ink text-white border-ink" : "bg-white text-body border-line2 hover:bg-ground"}`}>
-              {p.kind === "interview" && <span className="chip bg-pp-bg text-pp-fg mr-2">Upskill Prep</span>}
-              {p.title} · {p.status === "building" ? "building…" : p.pct ? `${p.pct}%` : "Not started"}
-            </button>
-          ))}
-        </div>
-        {active.modules_detail.length === 0 && (
-          <p className="card p-5 text-body">This course has no modules yet. <Link to={`/paths/${active.id}?edit=1`} className="text-accent font-semibold hover:underline">Add modules and lessons</Link></p>
-        )}
-        <ol className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-          {active.modules_detail.map((m) => (
-            <li key={m.id}>
-              <Link to={`/paths/${active.id}#module-${m.id}`}
-                className={`h-full flex flex-col gap-1.5 p-4 rounded-xl bg-white hover:shadow-sm ${m.state === "now" ? "border-2 border-accent" : "border border-line"}`}>
-                <span className={`text-xs font-semibold uppercase tracking-wide ${m.state === "done" ? "text-ok" : m.state === "now" ? "text-accent" : "text-muted"}`}>
-                  {m.state === "done" ? "Completed" : m.state === "now" ? "In progress" : "Up next"}
-                </span>
-                <span className="font-semibold">{m.idx + 1}. {m.title}</span>
-                <span className="text-[13px] text-muted">{m.done}/{m.lessons} lessons · {Math.round(m.minutes / 6) / 10} h</span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <MyLinksSection links={data.my_links} pathId={null} title="My courses & links"
-        intro={`Courses and pages you added yourself: general ones, plus those for ${active.title}.`} />
-
-      {active.current_module && active.lessons > 0 && (
-        <Recommendations home={active} running={!!runId} />
-      )}
-
-      {(run.data || active.last_run) && <AgentStrip home={active} liveRun={run.data ?? null} />}
-    </main>
-  );
-}
-
-function FocusNote({ lessonId, initial }: { lessonId: number; initial: string | null }) {
-  const note = useQuery({
-    queryKey: ["focus", lessonId], queryFn: () => api.focus(lessonId).then((r) => r.text),
-    enabled: !initial, retry: false, staleTime: Infinity,
-  });
-  const text = initial ?? note.data;
-  if (!text) return note.isLoading ? <Thinking label="Your companion is writing today's note…" /> : null;
-  return <p className="max-w-[680px] text-body">{text}</p>;
-}
-
-function ContinueCard({ c }: { c: NonNullable<NonNullable<HomeT["active"]>["continue"]> }) {
-  return (
-    <div className="card p-5 flex flex-wrap gap-5 items-center">
-      <div aria-hidden="true" className="w-[180px] h-[100px] rounded-[10px] bg-[#1E2433] text-white flex items-center justify-center"><Icon.play size={36} /></div>
-      <div className="flex-[1_1_240px] min-w-0 flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-ok uppercase tracking-wide">{c.started ? "Continue learning" : "Start next lesson"}</span>
-        <h2 className="text-xl font-semibold">Lesson {c.module_idx + 1}.{c.lesson_idx + 1} · {c.title}</h2>
-        <p className="text-muted">Module {c.module_idx + 1}: {c.module_title} · {c.est_minutes} min</p>
-        <div className="mt-1.5"><ProgressBar pct={(100 * c.module_done) / c.module_lessons} label={`Module ${c.module_done} of ${c.module_lessons} lessons done`} /></div>
-      </div>
-      <Link to={`/lessons/${c.lesson_id}`} className="btn-primary">{c.started ? "Resume lesson" : "Start lesson"}</Link>
-    </div>
-  );
-}
-
-function WeekCard({ week }: { week: NonNullable<HomeT["active"]>["week"] }) {
-  const h = Math.round(week.minutes / 6) / 10;
-  return (
-    <aside aria-labelledby="week-h" className="card flex-[1_1_260px] p-6 flex flex-col gap-4">
-      <h2 id="week-h" className="text-base font-semibold">Last 7 days</h2>
-      <div className="flex items-center gap-4">
-        <Ring value={week.minutes} max={week.goal_minutes} label={`${h} of ${week.goal_minutes / 60} hours`} />
-        <div>
-          <p className="h-display text-[28px]">{h} h</p>
-          <p className="text-muted">of your {week.goal_minutes / 60} h goal</p>
-        </div>
-      </div>
-      <ul className="flex flex-col gap-2.5 text-body">
-        <li className="flex justify-between"><span>Lessons done</span><strong className="text-ink">{week.lessons_done}</strong></li>
-        <li className="flex justify-between"><span>Questions asked</span><strong className="text-ink">{week.questions}</strong></li>
-      </ul>
-    </aside>
-  );
-}
-
-function Recommendations({ home, running }: { home: NonNullable<HomeT["active"]>; running: boolean }) {
-  const qc = useQueryClient();
-  const { ask } = useAsk();
-  const mod = home.current_module!;
-  const find = useMutation({
-    mutationFn: () => api.findResources(home.id, [mod.id]),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["home"] }),
-  });
-  const searching = running || mod.resources_status === "searching" || find.isPending;
-  const noVideos = home.videos.length === 0;
-
-  return (
-    <>
-      <section aria-labelledby="vid-h" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 id="vid-h" className="h-display text-[22px]">Video lectures for Module {mod.idx + 1}</h2>
-            <p className="text-muted mt-1">Found by the Video Search agent; every link is checked on YouTube.</p>
-          </div>
-          <Link to={`/discover?q=${encodeURIComponent(mod.title)}`} className="font-semibold text-accent hover:underline">See more in Discover</Link>
-        </div>
-        {noVideos ? (
-          <div className="card p-6 flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-[240px]">
-              <p className="font-semibold">{searching ? "Searching for videos…" : "No videos for this module yet."}</p>
-              <p className="text-muted text-sm mt-1">
-                {searching ? "The agents are searching YouTube and checking each link. This takes a few minutes; the page updates when they finish."
-                  : "The agents search YouTube with Claude's web search, check each link, then pick papers. Takes a few minutes and uses your Claude plan."}
-              </p>
-            </div>
-            {searching ? <Thinking label="Working" /> : (
-              <button type="button" className="btn-primary" onClick={() => find.mutate()}>
-                <Icon.search /> Find videos & papers
-              </button>
-            )}
-            {find.isError && <div className="w-full"><ErrorBox error={find.error} /></div>}
-          </div>
-        ) : (
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-            {home.videos.slice(0, 4).map((v) => (
-              <VideoCard key={v.id} r={v} footer={
-                <button type="button" className="btn-outline btn-sm" onClick={() => ask(`I'm watching "${v.title}". What should I focus on?`)}>Ask about it</button>
-              } />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-wrap gap-6">
-        <div role="region" aria-labelledby="crs-h" className="flex-[1_1_480px] min-w-0 flex flex-col gap-3">
-          <div>
-            <h2 id="crs-h" className="h-display text-[22px]">Find full courses</h2>
-            <p className="text-muted mt-1">Search terms for Module {mod.idx + 1}. Opens Coursera or Udemy in a new tab.</p>
-          </div>
-          {home.course_links.map((l) => (
-            <LinkCard key={l.url} {...l} hint={l.source === "coursera" ? "Structured courses, often with certificates" : "Practical, project-based courses"} />
-          ))}
-        </div>
-        <div role="region" aria-labelledby="pap-h" className="flex-[1_1_420px] min-w-0 flex flex-col gap-3">
-          <h2 id="pap-h" className="h-display text-[22px]">Related papers</h2>
-          {home.papers.length === 0 ? (
-            <p className="text-muted card p-5">{searching ? "Searching arXiv…" : "No papers for this module yet. Use “Find videos & papers” above."}</p>
-          ) : home.papers.slice(0, 3).map((p) => <PaperRow key={p.id} r={p} />)}
-        </div>
-      </section>
-    </>
-  );
-}
-
-function AgentStrip({ home, liveRun }: { home: NonNullable<HomeT["active"]>; liveRun: Run | null }) {
-  const qc = useQueryClient();
-  const run = liveRun ?? home.last_run!;
-  const [open, setOpen] = useState(false);
-  const refresh = useMutation({
-    mutationFn: () => api.findResources(home.id, home.current_module ? [home.current_module.id] : undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["home"] }),
-  });
-  const running = run?.status === "running";
-  return (
-    <section aria-labelledby="ag-h" className="card border-dashed border-[#C9CED8] p-5 flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 id="ag-h" className="text-[15px] font-semibold flex-1">
-          Companion agents · {running ? "working now" : run?.status === "failed" ? "last run failed" : `last run ${new Date(run!.finished_at ?? run!.started_at).toLocaleString()}`}
-        </h2>
-        <button type="button" className="btn-outline btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Hide details" : "Show details"}</button>
-        <button type="button" className="btn-outline btn-sm" disabled={running || refresh.isPending} onClick={() => refresh.mutate()}>
-          <Icon.refresh size={16} /> Refresh this module
+        <button type="button" className="btn-outline btn-sm" onClick={() => setCustomizing(true)} aria-haspopup="dialog">
+          <Icon.edit size={15} /> Customize
         </button>
-      </div>
-      {!open && run && (
-        <ul className="flex flex-wrap gap-2">
-          {run.steps.map((s) => (
-            <li key={s.agent} className={`chip px-2.5 py-1.5 text-[13px] font-medium ${s.status === "done" ? "bg-ok-soft text-ok-dark" : s.status === "failed" ? "bg-yt-bg text-yt-fg" : s.status === "running" ? "bg-accent-soft text-accent-dark" : "bg-[#F1F3F6] text-muted"}`}>
-              {s.status === "done" && <Icon.check size={14} />}{s.agent}
-            </li>
-          ))}
-        </ul>
+      </header>
+
+      {me.default_password && (
+        <p className="text-sm bg-pp-bg text-pp-fg rounded-xl px-4 py-2.5">
+          You're using the default password. <Link to="/settings" className="font-semibold underline">Change it</Link>
+        </p>
       )}
-      {open && run && <AgentSteps steps={run.steps} />}
-      {run?.error && <ErrorBox error={run.error} />}
-      {refresh.isError && <ErrorBox error={refresh.error} />}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 grid-flow-row-dense">
+        {cards.map((c) => {
+          const el = render(c);
+          return el ? <div key={c.id} className={`min-w-0 ${SPAN[c.id] ?? "lg:col-span-6"}`}>{el}</div> : null;
+        })}
+      </div>
+      {cards.length === 0 && <p className="card p-6 text-body">All cards are turned off. Use <strong>Customize</strong> to choose what you see here.</p>}
+      {customizing && <Customize layout={data.layout} onClose={() => setCustomizing(false)} />}
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return <main className="max-w-[1200px] mx-auto w-full px-4 sm:px-8 pt-8 pb-28 flex flex-col gap-6">{children}</main>;
+}
+
+function Card({ title, to, toLabel, children, className = "" }: {
+  title: string; to?: string; toLabel?: string; children: ReactNode; className?: string;
+}) {
+  return (
+    <section className={`card h-full p-5 flex flex-col gap-4 ${className}`} aria-label={title}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[15px] font-semibold">{title}</h2>
+        {to && <Link to={to} className="text-sm font-semibold text-accent hover:underline whitespace-nowrap">{toLabel ?? "See all"} →</Link>}
+      </div>
+      {children}
     </section>
   );
 }
 
-function EmptyHome({ data }: { data: HomeT }) {
-  const navigate = useNavigate();
-  return (
-    <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-8">
-      <div className="flex flex-col gap-4 max-w-[720px]">
-        <h1 className="h-display text-3xl">Welcome to Study Companion</h1>
-        <p className="text-body">
-          {data.hidden_paths > 0
-            ? `All ${data.hidden_paths} of your paths are hidden from the home page.`
-            : "Tell your companion what you want to learn and it will build a step-by-step path, or create your own course."}
-        </p>
+// ---------------------------------------------------------------- cards
+
+function ContinueCard({ active }: { active: Active | null }) {
+  if (!active) {
+    return (
+      <Card title="Get started">
+        <p className="text-body">Build a learning path from a goal, or create your own.</p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-primary" onClick={() => navigate("/setup")}>Set up a learning goal</button>
-          <Link to="/paths" className="btn-outline">{data.hidden_paths > 0 ? "Manage paths" : "Create my own course"}</Link>
+          <Link to="/setup" className="btn-primary">New learning goal</Link>
+          <Link to="/paths" className="btn-outline">My paths</Link>
+        </div>
+      </Card>
+    );
+  }
+  const c = active.continue;
+  if (!c) {
+    return (
+      <Card title="Continue learning">
+        <p className="text-lg font-semibold">You've finished {active.title}.</p>
+        <Link to="/setup" className="btn-primary self-start">Start a new goal</Link>
+      </Card>
+    );
+  }
+  return (
+    <section className="card h-full p-5 sm:p-6 flex flex-col gap-4 border-accent-line bg-gradient-to-br from-white to-accent-soft/50" aria-label="Continue learning">
+      <span className="text-xs font-semibold uppercase tracking-wide text-accent">{c.started ? "Continue learning" : "Up next"}</span>
+      <div className="flex flex-col gap-1">
+        <h2 className="h-display text-2xl leading-snug">{c.title}</h2>
+        <p className="text-muted text-sm">Module {c.module_idx + 1} · {c.module_title} · {c.est_minutes} min</p>
+      </div>
+      <ProgressBar pct={(100 * c.module_done) / c.module_lessons} label={`${c.module_done} of ${c.module_lessons} lessons in this module`} />
+      <Link to={`/lessons/${c.lesson_id}`} className="btn-primary self-start"><Icon.play size={16} /> {c.started ? "Resume" : "Start lesson"}</Link>
+    </section>
+  );
+}
+
+function WeekCard({ week }: { week: Active["week"] }) {
+  const h = Math.round(week.minutes / 6) / 10;
+  return (
+    <Card title="This week">
+      <div className="flex items-center gap-4">
+        <Ring value={week.minutes} max={week.goal_minutes} label={`${h} of ${week.goal_minutes / 60} hours`} />
+        <div>
+          <p className="h-display text-[28px] leading-none">{h} h</p>
+          <p className="text-muted text-sm mt-1">of {week.goal_minutes / 60} h goal</p>
         </div>
       </div>
-      <MyLinksSection links={data.my_links} pathId={null} title="My courses & links" />
-    </main>
+      <dl className="grid grid-cols-2 gap-3 text-center">
+        <div className="rounded-xl bg-ground py-2.5"><dt className="text-xs text-muted">Lessons</dt><dd className="text-lg font-semibold">{week.lessons_done}</dd></div>
+        <div className="rounded-xl bg-ground py-2.5"><dt className="text-xs text-muted">Questions</dt><dd className="text-lg font-semibold">{week.questions}</dd></div>
+      </dl>
+    </Card>
+  );
+}
+
+function PathsCard({ data, activeId, onChoose }: { data: HomeT; activeId?: number; onChoose: (id: number) => void }) {
+  return (
+    <Card title="My paths" to="/paths" toLabel={data.hidden_paths ? `All paths (${data.hidden_paths} hidden)` : "All paths"}>
+      {data.paths.length === 0 ? (
+        <Link to="/setup" className="btn-outline self-start">+ New learning goal</Link>
+      ) : (
+        <ul className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+          {data.paths.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => onChoose(p.id)} aria-pressed={p.id === activeId}
+                className={`w-full h-full text-left p-4 rounded-xl border flex flex-col gap-2.5 hover:shadow-sm ${p.id === activeId ? "border-accent border-2 bg-accent-soft/40" : "border-line bg-white"}`}>
+                <span className="font-semibold leading-snug line-clamp-2">{p.title}</span>
+                <ProgressBar pct={p.pct} label={p.status === "building" ? "Building…" : `${p.pct}%`} />
+                <span className="text-xs text-muted flex justify-between gap-2">
+                  <span>{p.kind === "interview" ? "Upskill Prep · " : ""}{p.done}/{p.lessons} lessons</span>
+                  <span className="font-semibold text-body">{p.status === "building" ? "Building…" : `${p.pct}%`}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function NewsCard() {
+  const news = useNews();
+  const live = useQuery({ queryKey: ["news-live"], queryFn: () => api.liveNews(20), staleTime: 5 * 60_000,
+    enabled: news.isSuccess && news.data.items.length === 0 });
+  const digest = news.data?.items.slice(0, 5) ?? [];
+  return (
+    <Card title="Tech News" to="/news" toLabel="Open">
+      {news.isLoading && <Thinking label="Loading…" />}
+      {digest.length > 0 ? (
+        <ul className="flex flex-col divide-y divide-line">
+          {digest.map((i) => (
+            <li key={i.url} className="py-2.5 first:pt-0">
+              <a href={i.url} target="_blank" rel="noreferrer" className="font-medium leading-snug hover:text-accent">{i.title}</a>
+              <p className="text-xs text-muted mt-0.5">{i.source}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="flex flex-col divide-y divide-line">
+          {live.data?.items.slice(0, 5).map((h) => (
+            <li key={h.id} className="py-2.5 first:pt-0">
+              <a href={h.url} target="_blank" rel="noreferrer" className="font-medium leading-snug hover:text-accent">{h.title}</a>
+              <p className="text-xs text-muted mt-0.5">{h.site} · Hacker News</p>
+            </li>
+          ))}
+          {live.data && live.data.items.length === 0 && <li className="text-sm text-muted">No headlines right now.</li>}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function PicksCard({ active, running }: { active: Active; running: boolean }) {
+  const qc = useQueryClient();
+  const mod = active.current_module!;
+  const find = useMutation({
+    mutationFn: () => api.findResources(active.id, [mod.id]),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["home"] }),
+  });
+  const searching = running || mod.resources_status === "searching" || find.isPending;
+  const videos = active.videos.slice(0, 2);
+  const papers = active.papers.slice(0, 2);
+  return (
+    <Card title={`For Module ${mod.idx + 1}`} to={`/paths/${active.id}#module-${mod.id}`} toLabel="Module">
+      {videos.length + papers.length === 0 ? (
+        <div className="flex flex-col gap-3 items-start">
+          <p className="text-sm text-muted">{searching ? "Finding videos and papers…" : "No videos or papers yet."}</p>
+          {searching ? <Thinking label="Working" /> : (
+            <button type="button" className="btn-outline btn-sm" onClick={() => find.mutate()}><Icon.search size={15} /> Find videos & papers</button>
+          )}
+          {find.isError && <ErrorBox error={find.error} />}
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {videos.map((v) => (
+            <li key={v.id}>
+              <a href={v.url} target="_blank" rel="noreferrer" className="flex gap-3 items-center group">
+                {v.thumbnail
+                  ? <img src={v.thumbnail} alt="" className="w-[96px] h-[54px] rounded-lg object-cover shrink-0 bg-ground" />
+                  : <span className="w-[96px] h-[54px] rounded-lg bg-[#1E2433] text-white flex items-center justify-center shrink-0"><Icon.play /></span>}
+                <span className="min-w-0">
+                  <span className="block font-medium leading-snug line-clamp-2 group-hover:text-accent">{v.title}</span>
+                  <span className="block text-xs text-muted">{v.author}{v.duration_min ? ` · ${v.duration_min} min` : ""}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+          {papers.map((p) => (
+            <li key={p.id} className="flex gap-3 items-center">
+              <span className="w-[96px] h-[54px] rounded-lg bg-ground text-muted flex items-center justify-center shrink-0"><Icon.paper /></span>
+              <span className="min-w-0">
+                <a href={p.url} target="_blank" rel="noreferrer" className="block font-medium leading-snug line-clamp-2 hover:text-accent">{p.title}</a>
+                <span className="block text-xs text-muted">{p.year ? `${p.year} · ` : ""}{p.lesson_id ? <Link to={`/lessons/${p.lesson_id}`} className="hover:underline">Summarize in lesson</Link> : "Paper"}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function LinksCard({ data }: { data: HomeT }) {
+  return (
+    <Card title="My links" to="/links" toLabel="Manage">
+      {data.my_links.length === 0 ? <p className="text-sm text-muted">No saved links yet.</p> : (
+        <ul className="flex flex-wrap gap-2">
+          {data.my_links.slice(0, 12).map((l) => (
+            <li key={l.id}>
+              <a href={l.url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 max-w-[280px] px-3 py-2 rounded-full border border-line2 bg-white hover:border-accent text-sm">
+                <span className="truncate font-medium">{l.title}</span>
+                {l.provider && <span className="text-xs text-muted shrink-0">{l.provider}</span>}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function JobsCard() {
+  const q = useQuery({ queryKey: ["jobs"], queryFn: api.jobs });
+  const jobs = q.data?.jobs.slice(0, 4) ?? [];
+  return (
+    <Card title="Hot jobs" to="/career#jobs" toLabel="Career">
+      {q.isLoading && <Thinking label="Loading…" />}
+      {q.data && jobs.length === 0 && <p className="text-sm text-muted">No job search yet. Run one from Career.</p>}
+      <ul className="grid gap-x-8 gap-y-3 md:grid-cols-2">
+        {jobs.map((j) => (
+          <li key={j.url} className="border-t border-line pt-2.5">
+            <a href={j.url} target="_blank" rel="noreferrer" className="font-medium leading-snug hover:text-accent">{j.title}</a>
+            <p className="text-xs text-muted mt-0.5">{[j.company, j.location, j.work_mode].filter(Boolean).join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------- customize
+
+function Customize({ layout, onClose }: { layout: HomeCard[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [cards, setCards] = useState(layout);
+  const save = useMutation({
+    mutationFn: (c: { id: string; on: boolean }[]) => api.homeLayout(c),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["home"] }); onClose(); },
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const move = (i: number, d: number) => {
+    const next = [...cards];
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    setCards(next);
+  };
+  return (
+    <div className="fixed inset-0 z-40 bg-black/30 flex items-end sm:items-center justify-center p-0 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="cust-h"
+        className="bg-white w-full sm:max-w-[440px] rounded-t-2xl sm:rounded-2xl shadow-xl p-5 flex flex-col gap-4 max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between">
+          <h2 id="cust-h" className="text-lg font-semibold">Customize Home</h2>
+          <button type="button" aria-label="Close" className="w-9 h-9 rounded-lg hover:bg-ground flex items-center justify-center" onClick={onClose}><Icon.close /></button>
+        </div>
+        <p className="text-sm text-muted -mt-2">Choose the cards you see and their order.</p>
+        <ul className="flex flex-col gap-1.5">
+          {cards.map((c, i) => (
+            <li key={c.id} className="flex items-center gap-2 p-2 pl-3 rounded-xl border border-line">
+              <label className="flex-1 flex items-center gap-3 min-h-[36px] cursor-pointer">
+                <input type="checkbox" className="w-4 h-4" checked={c.on}
+                  onChange={(e) => setCards(cards.map((x) => (x.id === c.id ? { ...x, on: e.target.checked } : x)))} />
+                <span className={c.on ? "font-medium" : "text-muted"}>{c.label}</span>
+              </label>
+              <button type="button" aria-label={`Move ${c.label} up`} disabled={i === 0} onClick={() => move(i, -1)}
+                className="w-9 h-9 rounded-lg hover:bg-ground disabled:opacity-30 flex items-center justify-center"><Icon.up size={16} /></button>
+              <button type="button" aria-label={`Move ${c.label} down`} disabled={i === cards.length - 1} onClick={() => move(i, 1)}
+                className="w-9 h-9 rounded-lg hover:bg-ground disabled:opacity-30 flex items-center justify-center"><Icon.down size={16} /></button>
+            </li>
+          ))}
+        </ul>
+        {save.isError && <ErrorBox error={save.error} />}
+        <div className="flex flex-wrap gap-2 justify-between">
+          <button type="button" className="btn-outline btn-sm" disabled={save.isPending} onClick={() => save.mutate([])}>Reset to default</button>
+          <div className="flex gap-2">
+            <button type="button" className="btn-outline btn-sm" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-primary btn-sm" disabled={save.isPending}
+              onClick={() => save.mutate(cards.map(({ id, on }) => ({ id, on })))}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

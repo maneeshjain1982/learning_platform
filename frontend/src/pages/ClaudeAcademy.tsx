@@ -4,6 +4,7 @@ import { api, type Academy, type AcademyCourse, type CourseStatus } from "../api
 import { useState } from "react";
 import AIUpdates from "../components/AIUpdates";
 import ReviewQA from "../components/ReviewQA";
+import { ItemActions, RemovedNote } from "../components/EditItem";
 import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
 
 const STATUS: { value: CourseStatus; label: string }[] = [
@@ -59,6 +60,7 @@ export default function ClaudeAcademy() {
           <h2 id="track-h" className="h-display text-2xl">Agent builder track</h2>
           <p className="text-muted">{d.groups.find((g) => g.id === "agents")?.summary}</p>
         </div>
+        <RemovedNote scope="claude.courses" count={d.removed} edited={d.courses.some((c) => c._edited)} queryKey={["academy"]} />
         <ol className="flex flex-col gap-4">
           {track.map((c) => <li key={c.slug}><CourseCard c={c} pathId={d.path_id} /></li>)}
         </ol>
@@ -137,12 +139,17 @@ function CourseCard({ c, pathId, compact = false }: { c: AcademyCourse; pathId: 
           </span>
         )}
         <div className="flex-1 min-w-[220px]">
-          <h3 className="font-semibold text-lg leading-snug">
-            <a href={c.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">
-              {c.title} <Icon.external size={14} className="text-muted shrink-0" />
-              <span className="sr-only">(opens Claude Academy in a new tab)</span>
-            </a>
-          </h3>
+          <div className="flex items-start gap-2">
+            <h3 className="font-semibold text-lg leading-snug flex-1">
+              <a href={c.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">
+                {c.title} <Icon.external size={14} className="text-muted shrink-0" />
+                <span className="sr-only">(opens Claude Academy in a new tab)</span>
+              </a>
+            </h3>
+            <ItemActions scope="claude.courses" itemKey={c._key ?? c.slug} title={c.title} queryKey={["academy"]} fields={[
+              { name: "title", label: "Title", value: c.title }, { name: "summary", label: "Summary", value: c.summary, long: true },
+              { name: "why", label: "Why take it", value: c.why, long: true }]} />
+          </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             {facts.map((f) => <span key={f} className="chip bg-[#F1F3F6] text-body">{f}</span>)}
             <span className={`chip ${c.badge ? "bg-ok-soft text-ok-dark" : "bg-[#F1F3F6] text-muted"}`}>

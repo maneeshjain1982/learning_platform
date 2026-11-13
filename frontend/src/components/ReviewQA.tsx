@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api, type QAItem, type QAStatus } from "../api";
+import { useMe } from "./Auth";
+import { Dialog } from "./EditItem";
 import { ErrorBox, Icon, Markdown, Thinking } from "./ui";
 
 type Filter = "all" | "todo" | "review" | "known";
@@ -124,6 +126,10 @@ function QACard({ i, slug, forceOpen, parentKey }: { i: QAItem; slug: string; fo
     mutationFn: (s: QAStatus) => api.setQAStatus(i.id, s),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["course-qa", slug] }); qc.invalidateQueries({ queryKey: [parentKey] }); },
   });
+  const me = useMe();
+  const [editing, setEditing] = useState(false);
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["course-qa", slug] }); qc.invalidateQueries({ queryKey: [parentKey] }); };
+  const remove = useMutation({ mutationFn: () => api.deleteQA(i.id), onSuccess: refresh });
   const tone = i.status === "known" ? "border-ok/40 bg-ok-soft/40" : i.status === "review" ? "border-[#F2C77B] bg-pp-bg/40" : "border-line";
   return (
     <div className={`rounded-xl border p-3.5 flex flex-col gap-2 ${tone}`}>
@@ -155,9 +161,45 @@ function QACard({ i, slug, forceOpen, parentKey }: { i: QAItem; slug: string; fo
               onClick={() => mark.mutate(i.status === "known" ? "new" : "known")}><Icon.check size={15} /> Know it</button>
             <button type="button" className="btn-outline btn-sm" disabled={mark.isPending} aria-pressed={i.status === "review"}
               onClick={() => mark.mutate(i.status === "review" ? "new" : "review")}>Review again</button>
+            {me.is_admin && <>
+              <button type="button" className="btn-outline btn-sm" onClick={() => setEditing(true)}><Icon.edit size={15} /> Edit</button>
+              <button type="button" className="btn-outline btn-sm" disabled={remove.isPending}
+                onClick={() => { if (confirm("Delete this question for every account?")) remove.mutate(); }}><Icon.trash size={15} /> Delete</button>
+            </>}
           </div>
+          {editing && <QAEdit i={i} onClose={() => setEditing(false)} onSaved={refresh} />}
         </div>
       )}
     </div>
+  );
+}
+
+const NL = String.fromCharCode(10);
+
+function QAEdit({ i, onClose, onSaved }: { i: QAItem; onClose: () => void; onSaved: () => void }) {
+  const [q, setQ] = useState(i.question);
+  const [a, setA] = useState(i.answer_md);
+  const [k, setK] = useState(i.key_points.join(NL));
+  const save = useMutation({
+    mutationFn: () => api.editQA(i.id, { question: q, answer_md: a, key_points: k.split(NL) }),
+    onSuccess: () => { onSaved(); onClose(); },
+  });
+  return (
+    <Dialog title="Edit question" onClose={onClose}>
+      <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+        <label htmlFor={`qq-${i.id}`} className="label">Question</label>
+        <textarea id={`qq-${i.id}`} className="input" rows={2} required value={q} onChange={(e) => setQ(e.target.value)} />
+        <label htmlFor={`qa-${i.id}`} className="label">Answer (Markdown)</label>
+        <textarea id={`qa-${i.id}`} className="input font-mono text-sm" rows={8} required value={a} onChange={(e) => setA(e.target.value)} />
+        <label htmlFor={`qk-${i.id}`} className="label">Key points (one per line)</label>
+        <textarea id={`qk-${i.id}`} className="input" rows={3} value={k} onChange={(e) => setK(e.target.value)} />
+        <p className="text-xs text-muted">Questions are shared, so the change applies for every account.</p>
+        {save.isError && <ErrorBox error={save.error} />}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-outline btn-sm" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn-primary btn-sm" disabled={save.isPending}>Save</button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

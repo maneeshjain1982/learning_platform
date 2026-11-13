@@ -95,6 +95,7 @@ def resource_out(r: Resource, *, why: str = "", saved: set[int] | None = None, a
         "year": r.year, "duration_min": r.duration_min, "summary": r.summary, "thumbnail": r.thumbnail,
         "external_id": r.external_id, "citations": (r.meta or {}).get("citations"), "pdf": (r.meta or {}).get("pdf"),
         "why": why, "saved": r.id in (saved or set()), "added_by": added_by,
+        "has_summary": bool((r.meta or {}).get("ai_summary")),
     }
 
 

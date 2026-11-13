@@ -12,6 +12,7 @@ from ..db import get_db
 from ..llm import get_llm
 from ..models import User
 from . import bgjobs
+from .. import overlay
 from ..auth import uid
 
 router = APIRouter(prefix="/api/career", tags=["career"])
@@ -26,9 +27,11 @@ def _state(db: Session, key: str) -> dict:
 
 # ---------------------------------------------------------------- certifications
 
-def _certs_out(st: dict) -> dict:
+def _certs_out(db: Session, st: dict) -> dict:
     pub = bgjobs.public(st)
-    return {"checked_on": career.CHECKED_ON, "tiers": career.TIERS, "certs": career.CERTS,
+    return {"checked_on": career.CHECKED_ON, "tiers": career.TIERS,
+            "certs": overlay.apply(db, "career.certs", career.CERTS),
+            "removed": overlay.hidden_count(db, "career.certs", career.CERTS),
             "refresh": {"status": pub["status"], "error": pub["error"], "started_at": pub["started_at"],
                         "fetched_at": pub["fetched_at"], "summary": st.get("summary", ""),
                         "items": st.get("items", []), "dropped": st.get("dropped", 0)}}
@@ -36,7 +39,7 @@ def _certs_out(st: dict) -> dict:
 
 @router.get("/certifications")
 def certifications(db: Session = Depends(get_db)):
-    return _certs_out(_state(db, CERTS_KEY))
+    return _certs_out(db, _state(db, CERTS_KEY))
 
 
 @router.post("/certifications/refresh")
@@ -48,7 +51,7 @@ async def refresh_certifications(db: Session = Depends(get_db)):
         return await find_certifications(get_llm(), known)
 
     bgjobs.start(db, CERTS_KEY, work)
-    return _certs_out(_state(db, CERTS_KEY))
+    return _certs_out(db, _state(db, CERTS_KEY))
 
 
 # ---------------------------------------------------------------- jobs

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type AIUpdate } from "../api";
+import { RemoveFound } from "./EditItem";
 import { ErrorBox, Icon, Thinking } from "./ui";
 
 const RANGES = [30, 45, 90];
@@ -107,6 +108,7 @@ function UpdateRow({ i }: { i: AIUpdate }) {
         {i.is_new && <span className="chip bg-ok-soft text-ok-dark">New since last refresh</span>}
         {i.new_course && <span className="chip bg-pp-bg text-pp-fg">New course, not in the list below yet</span>}
         {!i.verified && <span className="chip bg-[#F1F3F6] text-muted" title="The site blocked our link check, so it couldn't be confirmed">Link not verified</span>}
+        <span className="ml-auto"><RemoveFound job="updates" url={i.url} title={i.title} queryKey={["ai-updates"]} /></span>
       </div>
       <h3 className="font-semibold">
         <a href={i.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">

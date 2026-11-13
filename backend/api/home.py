@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,42 @@ from .common import (uid, bookmark_out, get_or_404, last_run, lesson_resources, 
                      progress_map, saved_ids, week_stats)
 
 router = APIRouter(prefix="/api/home", tags=["home"])
+
+# Home page cards, in default order. "admin" cards only show for the admin account.
+CARDS = [("continue", "Continue learning"), ("week", "This week"), ("paths", "My paths"), ("news", "Tech News"),
+         ("picks", "Videos & papers for now"), ("links", "My links"), ("jobs", "Hot jobs")]
+ADMIN_CARDS = {"jobs"}
+DEFAULT_OFF = {"links"}
+
+
+def _layout(user: User) -> list[dict]:
+    """Your home cards in your order: saved choices first, then any new cards with their defaults."""
+    allowed = {k: label for k, label in CARDS if k not in ADMIN_CARDS or user.role == "admin"}
+    saved = [c for c in ((user.settings or {}).get("home_layout") or []) if c.get("id") in allowed]
+    ids = {c["id"] for c in saved}
+    rest = [{"id": k, "on": k not in DEFAULT_OFF} for k in allowed if k not in ids]
+    return [{"id": c["id"], "label": allowed[c["id"]], "on": bool(c.get("on", True))} for c in saved + rest]
+
+
+class LayoutCard(BaseModel):
+    id: str
+    on: bool
+
+
+@router.get("/layout")
+def get_layout(db: Session = Depends(get_db)):
+    return _layout(db.get(User, uid()))
+
+
+@router.put("/layout")
+def put_layout(cards: list[LayoutCard], db: Session = Depends(get_db)):
+    user = db.get(User, uid())
+    known = {c["id"] for c in _layout(user)}
+    if any(c.id not in known for c in cards):
+        raise HTTPException(422, "Unknown card")
+    user.settings = {**(user.settings or {}), "home_layout": [c.model_dump() for c in cards]}
+    db.commit()
+    return _layout(user)
 
 
 def _active_path(db: Session, path_id: int | None, visible: list[LearningPath]) -> LearningPath | None:
@@ -44,7 +81,8 @@ def home(path_id: int | None = None, db: Session = Depends(get_db)):
     hidden = len(all_paths) - len(visible)
     path = _active_path(db, path_id, visible)
     if path is None:
-        return {"user": {"name": user.name if user else "Learner"}, "paths": paths, "hidden_paths": hidden,
+        return {"user": {"name": user.name if user else "Learner"}, "layout": _layout(user), "paths": paths,
+                "hidden_paths": hidden,
                 "my_links": _my_links(db, None), "active": None}
 
     lessons = [l for m in path.modules for l in m.lessons]
@@ -88,6 +126,7 @@ def home(path_id: int | None = None, db: Session = Depends(get_db)):
     note = db.get(FocusNote, current.id) if current else None
     return {
         "user": {"name": user.name if user else "Learner"},
+        "layout": _layout(user),
         "paths": paths,
         "hidden_paths": hidden,
         "my_links": _my_links(db, path),
