@@ -41,7 +41,9 @@ def init_db(bind=None) -> None:
 
 # Columns added after v1. create_all() doesn't alter existing tables, so add them here.
 _NEW_COLUMNS = {
-    "paths": {"show_on_home": "BOOLEAN NOT NULL DEFAULT 1", "position": "INTEGER NOT NULL DEFAULT 0",
+    "users": {"username": "VARCHAR(40)", "password_hash": "VARCHAR(200)",
+              "role": "VARCHAR(10) NOT NULL DEFAULT 'user'"},
+    "paths": {"user_id": "INTEGER NOT NULL DEFAULT 1", "show_on_home": "BOOLEAN NOT NULL DEFAULT 1", "position": "INTEGER NOT NULL DEFAULT 0",
               "kind": "VARCHAR(20) NOT NULL DEFAULT 'learning'"},
     "agent_runs": {"interview_id": "INTEGER REFERENCES interview_preps(id) ON DELETE SET NULL"},
 }
@@ -56,6 +58,11 @@ def _add_missing_columns(bind) -> None:
             for name, ddl in cols.items():
                 if name not in have:
                     conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        # Review-question marks moved to qa_marks (per account); the old marks belong to the admin (user 1).
+        if not conn.exec_driver_sql("SELECT 1 FROM qa_marks LIMIT 1").first():
+            conn.exec_driver_sql("INSERT OR IGNORE INTO qa_marks (user_id, qa_id, status) "
+                                 "SELECT 1, id, status FROM academy_qa WHERE status != 'new'")
+            conn.exec_driver_sql("UPDATE academy_qa SET status = 'new' WHERE status != 'new'")
 
 
 def get_db() -> Iterator[Session]:

@@ -12,7 +12,7 @@ from ..db import get_db
 from ..llm import get_llm
 from ..models import User
 from . import bgjobs
-from .common import USER_ID
+from ..auth import uid
 
 router = APIRouter(prefix="/api/career", tags=["career"])
 
@@ -21,7 +21,7 @@ DEFAULT_ROLES = "Agentic AI Architect, AI Agent Engineer, Generative AI Architec
 
 
 def _state(db: Session, key: str) -> dict:
-    return bgjobs.read(db.get(User, USER_ID), key)
+    return bgjobs.read(db.get(User, uid()), key)
 
 
 # ---------------------------------------------------------------- certifications

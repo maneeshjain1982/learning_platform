@@ -10,7 +10,7 @@ from .. import config
 from ..db import get_db
 from ..llm import provider_status
 from ..models import User
-from .common import USER_ID
+from ..auth import uid
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -22,13 +22,13 @@ class ProfileIn(BaseModel):
 
 @router.get("/profile")
 def get_profile(db: Session = Depends(get_db)):
-    u = db.get(User, USER_ID)
+    u = db.get(User, uid())
     return {"name": u.name, "email": u.email}
 
 
 @router.put("/profile")
 def put_profile(body: ProfileIn, db: Session = Depends(get_db)):
-    u = db.get(User, USER_ID)
+    u = db.get(User, uid())
     u.name, u.email = body.name.strip(), body.email
     db.commit()
     return {"name": u.name, "email": u.email}

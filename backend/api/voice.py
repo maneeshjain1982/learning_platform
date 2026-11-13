@@ -23,7 +23,8 @@ from ..models import AcademyQA, LearningPath, Lesson, Module, User
 from ..providers import Candidate
 from ..voice_langs import LANGS
 from . import bgjobs
-from .common import USER_ID, progress_map
+from ..auth import user_slug
+from .common import progress_map, qa_counts, uid
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
@@ -41,14 +42,14 @@ def languages():
 
 
 def _state(db: Session, lang: ModuleType) -> dict:
-    user = db.get(User, USER_ID)
+    user = db.get(User, uid())
     st = dict((user.settings or {}).get(lang.SETTINGS_KEY) or {})
     return {"skills": dict(st.get("skills") or {}), "courses": dict(st.get("courses") or {}),
             "steps": list(st.get("steps") or [])}
 
 
 def _save_state(db: Session, lang: ModuleType, st: dict) -> None:
-    user = db.get(User, USER_ID)
+    user = db.get(User, uid())
     user.settings = {**(user.settings or {}), lang.SETTINGS_KEY: st}  # reassign so SQLAlchemy sees the change
 
 
@@ -57,7 +58,7 @@ def _step_ids(lang: ModuleType) -> set[str]:
 
 
 def _path(db: Session, lang: ModuleType) -> LearningPath | None:
-    return db.scalars(select(LearningPath).where(LearningPath.slug == lang.PATH_SLUG)).first()
+    return db.scalars(select(LearningPath).where(LearningPath.user_id == uid()).where(LearningPath.slug == user_slug(lang.PATH_SLUG))).first()
 
 
 def _module_progress(db: Session, lang: ModuleType, path: LearningPath | None) -> dict[str, dict]:
@@ -79,14 +80,7 @@ def overview(code: str, db: Session = Depends(get_db)):
     st = _state(db, lang)
     path = _path(db, lang)
     prog = _module_progress(db, lang, path)
-    qa: dict[str, dict] = {}
-    for slug, status, n in db.execute(select(AcademyQA.course_slug, AcademyQA.status, func.count())
-                                      .where(AcademyQA.course_slug.like(f"{lang.SLUG_PREFIX}%"))
-                                      .group_by(AcademyQA.course_slug, AcademyQA.status)):
-        d = qa.setdefault(slug, {"total": 0, "known": 0, "review": 0})
-        d["total"] += n
-        if status in ("known", "review"):
-            d[status] += n
+    qa = qa_counts(db, lang.SLUG_PREFIX)
     empty = {"total": 0, "known": 0, "review": 0}
     steps = _step_ids(lang)
     return {
@@ -155,7 +149,7 @@ def create_path(code: str, db: Session = Depends(get_db)):
         return {"path_id": existing.id, "created": False}
     top = db.scalar(select(func.max(LearningPath.position))) or 0
     lessons = sum(m["lessons"] for m in lang.MODULES)
-    path = LearningPath(slug=lang.PATH_SLUG, title=lang.PATH_TITLE, summary=lang.PATH_SUMMARY, level="intermediate",
+    path = LearningPath(slug=user_slug(lang.PATH_SLUG), user_id=uid(), title=lang.PATH_TITLE, summary=lang.PATH_SUMMARY, level="intermediate",
                         hours_per_week=5, weeks=max(1, math.ceil(lessons * 0.75 / 5)), status="ready",
                         position=top + 1, sources=["youtube", "arxiv", "semantic_scholar"])
     for mi, m in enumerate(lang.MODULES):
@@ -194,7 +188,7 @@ class ResearchIn(BaseModel):
 
 
 def _research_out(db: Session, lang: ModuleType) -> dict:
-    st = bgjobs.read(db.get(User, USER_ID), f"{lang.JOB_PREFIX}-research")
+    st = bgjobs.read(db.get(User, uid()), f"{lang.JOB_PREFIX}-research")
     out = bgjobs.public(st)
     return {"status": out["status"], "error": out["error"], "started_at": out["started_at"],
             "fetched_at": out["fetched_at"], "summary": st.get("summary", ""), "items": st.get("items", []),
@@ -234,7 +228,7 @@ class UtterIn(BaseModel):
 
 
 def _utter_out(db: Session, lang: ModuleType) -> dict:
-    st = bgjobs.read(db.get(User, USER_ID), f"{lang.JOB_PREFIX}-utterances")
+    st = bgjobs.read(db.get(User, uid()), f"{lang.JOB_PREFIX}-utterances")
     out = bgjobs.public(st)
     return {"status": out["status"], "error": out["error"], "started_at": out["started_at"],
             "fetched_at": out["fetched_at"], "items": st.get("items", []),

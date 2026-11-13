@@ -16,7 +16,7 @@ from ..agents.interview import MockInterviewer
 from ..db import get_db
 from ..llm import LLMUnavailable, get_llm
 from ..models import (AgentRun, InterviewPrep, InterviewQuestion, InterviewSkill, LearningPath, PracticeAttempt)
-from .common import USER_ID, get_or_404, iso, path_summary, run_out, spawn
+from .common import uid, get_or_404, iso, path_summary, run_out, spawn
 
 router = APIRouter(prefix="/api", tags=["interview"])
 
@@ -94,7 +94,7 @@ class PrepIn(BaseModel):
 
 @router.post("/interviews")
 async def create_prep(body: PrepIn, db: Session = Depends(get_db)):
-    prep = InterviewPrep(user_id=USER_ID, **{**body.model_dump(), "role_title": body.role_title.strip(),
+    prep = InterviewPrep(user_id=uid(), **{**body.model_dump(), "role_title": body.role_title.strip(),
                                             "company": body.company.strip()})
     db.add(prep)
     db.commit()
@@ -105,7 +105,7 @@ async def create_prep(body: PrepIn, db: Session = Depends(get_db)):
 
 @router.get("/interviews")
 def list_preps(db: Session = Depends(get_db)):
-    preps = db.scalars(select(InterviewPrep).where(InterviewPrep.user_id == USER_ID).order_by(InterviewPrep.id.desc()))
+    preps = db.scalars(select(InterviewPrep).where(InterviewPrep.user_id == uid()).order_by(InterviewPrep.id.desc()))
     return [summary_out(db, p) for p in preps]
 
 

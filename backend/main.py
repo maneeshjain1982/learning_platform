@@ -17,9 +17,10 @@ from sqlalchemy import select
 from . import config
 from .api import bgjobs, router
 from .api.common import spawn
+from .auth import AuthMiddleware
 from .db import init_db, session_scope
 from .models import AgentRun, InterviewPrep, LearningPath, Lesson, Module, utcnow
-from .seed import attach_seed_papers, seed_structure
+from .seed import attach_seed_papers, seed_papers_missing, seed_structure
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("study")
@@ -50,15 +51,17 @@ async def lifespan(app: FastAPI):
     _recover_interrupted_work()
     with session_scope() as db:
         created = seed_structure(db)
-    if created:
+        missing = seed_papers_missing(db)
+    if created or missing:
         log.info("Cold boot: created %d seed paths; fetching their papers from arXiv in the background", len(created))
         spawn(attach_seed_papers())
     yield
 
 
 app = FastAPI(title="Study Companion", version="0.1.0", lifespan=lifespan)
+app.add_middleware(AuthMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-                   allow_methods=["*"], allow_headers=["*"])
+                   allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 app.include_router(router)
 
 # Serve the built frontend (npm run build) from the same server.

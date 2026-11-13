@@ -9,7 +9,7 @@ from ..agents.tutor import Tutor
 from ..db import get_db
 from ..llm import LLMUnavailable, get_llm
 from ..models import ChatMessage, ChatSession, Lesson
-from .common import USER_ID, get_or_404, iso
+from .common import uid, get_or_404, iso
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -43,7 +43,7 @@ async def ask(body: ChatIn, db: Session = Depends(get_db)):
     if body.session_id:
         session = get_or_404(db, ChatSession, body.session_id)
     else:
-        session = ChatSession(user_id=USER_ID, lesson_id=body.lesson_id, title=body.message[:80])
+        session = ChatSession(user_id=uid(), lesson_id=body.lesson_id, title=body.message[:80])
         db.add(session)
         db.flush()
 
@@ -81,7 +81,7 @@ async def ask(body: ChatIn, db: Session = Depends(get_db)):
 
 @router.get("/sessions")
 def sessions(lesson_id: int | None = None, db: Session = Depends(get_db)):
-    q = select(ChatSession).where(ChatSession.user_id == USER_ID).order_by(ChatSession.id.desc()).limit(30)
+    q = select(ChatSession).where(ChatSession.user_id == uid()).order_by(ChatSession.id.desc()).limit(30)
     if lesson_id:
         q = q.where(ChatSession.lesson_id == lesson_id)
     return [session_out(s, with_messages=False) for s in db.scalars(q)]

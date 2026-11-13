@@ -20,8 +20,20 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), default="Learner")
     email: Mapped[Optional[str]] = mapped_column(String(200))
+    username: Mapped[Optional[str]] = mapped_column(String(40), unique=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(10), default="user")  # admin | user
     settings: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class AuthSession(Base):
+    """A signed-in browser: the random token in the session cookie."""
+    __tablename__ = "auth_sessions"
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    expires_at: Mapped[datetime]
 
 
 class LearningRequirement(Base):
@@ -51,6 +63,7 @@ class LearningPath(Base):
     __tablename__ = "paths"
     id: Mapped[int] = mapped_column(primary_key=True)
     requirement_id: Mapped[Optional[int]] = mapped_column(ForeignKey("learning_requirements.id", ondelete="SET NULL"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), default=1)  # owner
     slug: Mapped[Optional[str]] = mapped_column(String(80), unique=True)
     title: Mapped[str] = mapped_column(String(200))
     summary: Mapped[str] = mapped_column(Text, default="")
@@ -335,3 +348,11 @@ class AcademyQA(Base):
     references: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(10), default="new")  # new | review | known
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class QAMark(Base):
+    """One user's mark on a shared review question (questions are shared; marks are per account)."""
+    __tablename__ = "qa_marks"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    qa_id: Mapped[int] = mapped_column(ForeignKey("academy_qa.id", ondelete="CASCADE"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(10), default="new")  # new | review | known

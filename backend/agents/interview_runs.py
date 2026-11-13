@@ -135,7 +135,7 @@ async def run_build(run_id: int, prep_id: int, llm: LLMClient | None = None, *, 
                 p = db.get(InterviewPrep, prep_id)
                 if p.path_id and (old_path := db.get(LearningPath, p.path_id)):
                     db.delete(old_path)
-                path = LearningPath(title=f"Upskill Prep: {prep.role_title}", summary=plan.summary,
+                path = LearningPath(user_id=p.user_id, title=f"Upskill Prep: {prep.role_title}", summary=plan.summary,
                                     level=LEVEL.get(prep.seniority, "advanced"), hours_per_week=prep.hours_per_week,
                                     weeks=weeks, sources=["youtube", "coursera", "udemy", "arxiv"], status="building",
                                     kind="interview")

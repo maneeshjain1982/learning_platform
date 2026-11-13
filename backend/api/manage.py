@@ -18,7 +18,8 @@ from ..db import get_db
 from ..models import AgentRun, Bookmark, LearningPath, Lesson, Module, User
 from ..providers import youtube_verify
 from ..seed import seed_structure
-from .common import USER_ID, bookmark_out, get_or_404, path_summary
+from ..auth import base_slug
+from .common import uid, bookmark_out, get_or_404, path_summary
 
 router = APIRouter(prefix="/api", tags=["manage"])
 
@@ -52,7 +53,7 @@ def _renumber(items: list, attr: str = "idx") -> None:
 
 
 def ordered_paths(db: Session) -> list[LearningPath]:
-    return list(db.scalars(select(LearningPath).order_by(LearningPath.position, LearningPath.id)))
+    return list(db.scalars(select(LearningPath).where(LearningPath.user_id == uid()).order_by(LearningPath.position, LearningPath.id)))
 
 
 # ---------------------------------------------------------------- paths (courses)
@@ -81,7 +82,7 @@ class PathPatch(BaseModel):
 @router.post("/paths")
 def create_path(body: PathIn, db: Session = Depends(get_db)):
     top = db.scalar(select(func.max(LearningPath.position))) or 0
-    path = LearningPath(title=body.title.strip(), summary=body.summary.strip(), level=body.level,
+    path = LearningPath(user_id=uid(), title=body.title.strip(), summary=body.summary.strip(), level=body.level,
                         hours_per_week=body.hours_per_week, weeks=body.weeks, status="ready",
                         sources=["youtube", "coursera", "udemy", "arxiv"], position=top + 1)
     for i, t in enumerate(x.strip() for x in body.modules if x.strip()):
@@ -114,9 +115,9 @@ def delete_path(path_id: int, db: Session = Depends(get_db)):
     _ensure_idle(db, path_id)
     if path.is_seed and path.slug:
         # Remember it so the starter path isn't recreated on the next server start.
-        user = db.get(User, USER_ID)
+        user = db.get(User, uid())
         settings = dict(user.settings or {})
-        settings["removed_seeds"] = sorted(set(settings.get("removed_seeds", [])) | {path.slug})
+        settings["removed_seeds"] = sorted(set(settings.get("removed_seeds", [])) | {base_slug(path.slug)})
         user.settings = settings
     db.delete(path)
     db.commit()
@@ -126,10 +127,10 @@ def delete_path(path_id: int, db: Session = Depends(get_db)):
 @router.post("/paths/restore-starters")
 async def restore_starters(db: Session = Depends(get_db)):
     """Bring back deleted starter paths (Agentic AI, LLM Fundamentals, Agentic Harness)."""
-    user = db.get(User, USER_ID)
+    user = db.get(User, uid())
     user.settings = {k: v for k, v in (user.settings or {}).items() if k != "removed_seeds"}
     db.flush()
-    created = seed_structure(db)
+    created = seed_structure(db, [uid()])
     db.commit()
     if created:
         from ..seed import attach_seed_papers
@@ -339,10 +340,10 @@ class LinkPatch(BaseModel):
 
 @router.get("/links")
 def list_links(path_id: int | None = None, db: Session = Depends(get_db)):
-    q = select(Bookmark).where(Bookmark.user_id == USER_ID).order_by(Bookmark.position, Bookmark.id)
+    q = select(Bookmark).where(Bookmark.user_id == uid()).order_by(Bookmark.position, Bookmark.id)
     if path_id is not None:
         q = q.where(Bookmark.path_id == path_id)
-    titles = {p.id: p.title for p in db.scalars(select(LearningPath))}
+    titles = {p.id: p.title for p in db.scalars(select(LearningPath).where(LearningPath.user_id == uid()))}
     return [bookmark_out(b, titles) for b in db.scalars(q)]
 
 
@@ -353,12 +354,12 @@ async def create_link(body: LinkIn, db: Session = Depends(get_db)):
     if body.path_id is not None:
         get_or_404(db, LearningPath, body.path_id)
     title = body.title or await fetch_title(url, provider) or urlparse(url).netloc
-    top = db.scalar(select(func.max(Bookmark.position)).where(Bookmark.user_id == USER_ID)) or 0
-    b = Bookmark(user_id=USER_ID, url=url, title=title, provider=provider, kind=body.kind or kind,
+    top = db.scalar(select(func.max(Bookmark.position)).where(Bookmark.user_id == uid())) or 0
+    b = Bookmark(user_id=uid(), url=url, title=title, provider=provider, kind=body.kind or kind,
                  note=body.note, path_id=body.path_id, show_on_home=body.show_on_home, position=top + 1)
     db.add(b)
     db.commit()
-    return bookmark_out(b, {p.id: p.title for p in db.scalars(select(LearningPath))})
+    return bookmark_out(b, {p.id: p.title for p in db.scalars(select(LearningPath).where(LearningPath.user_id == uid()))})
 
 
 @router.patch("/links/{link_id}")
@@ -377,13 +378,13 @@ def update_link(link_id: int, body: LinkPatch, db: Session = Depends(get_db)):
         if v is not None:
             setattr(b, k, v.strip() if isinstance(v, str) else v)
     db.commit()
-    return bookmark_out(b, {p.id: p.title for p in db.scalars(select(LearningPath))})
+    return bookmark_out(b, {p.id: p.title for p in db.scalars(select(LearningPath).where(LearningPath.user_id == uid()))})
 
 
 @router.post("/links/{link_id}/move")
 def move_link(link_id: int, body: MoveIn, db: Session = Depends(get_db)):
     b = get_or_404(db, Bookmark, link_id)
-    items = list(db.scalars(select(Bookmark).where(Bookmark.user_id == USER_ID)
+    items = list(db.scalars(select(Bookmark).where(Bookmark.user_id == uid())
                             .order_by(Bookmark.position, Bookmark.id)))
     _move(items, b, body.direction, "position")
     db.commit()

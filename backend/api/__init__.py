@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from . import career, chat, claude, home, interview, lessons, manage, paths, search, settings, voice
+from . import auth, career, chat, claude, home, interview, lessons, manage, paths, search, settings, voice
 
 router = APIRouter()
-for module in (career, chat, claude, home, interview, lessons, manage, paths, search, settings, voice):
+for module in (auth, career, chat, claude, home, interview, lessons, manage, paths, search, settings, voice):
     router.include_router(module.router)

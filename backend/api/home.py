@@ -8,7 +8,7 @@ from ..agents import orchestrator
 from ..db import get_db
 from ..llm import LLMUnavailable
 from ..models import Bookmark, FocusNote, LearningPath, Lesson, Progress, User
-from .common import (USER_ID, bookmark_out, get_or_404, last_run, lesson_resources, module_links, path_summary,
+from .common import (uid, bookmark_out, get_or_404, last_run, lesson_resources, module_links, path_summary,
                      progress_map, saved_ids, week_stats)
 
 router = APIRouter(prefix="/api/home", tags=["home"])
@@ -19,7 +19,7 @@ def _active_path(db: Session, path_id: int | None, visible: list[LearningPath]) 
     ids = {p.id for p in visible}
     if path_id in ids:
         return db.get(LearningPath, path_id)
-    for prog in db.scalars(select(Progress).where(Progress.user_id == USER_ID).order_by(Progress.updated_at.desc())):
+    for prog in db.scalars(select(Progress).where(Progress.user_id == uid()).order_by(Progress.updated_at.desc())):
         lesson = db.get(Lesson, prog.lesson_id)
         if lesson and lesson.module.path_id in ids:
             return lesson.module.path
@@ -28,17 +28,17 @@ def _active_path(db: Session, path_id: int | None, visible: list[LearningPath]) 
 
 def _my_links(db: Session, path: LearningPath | None) -> list[dict]:
     """Your own courses and links for the home page: general ones plus those added to the active path."""
-    q = (select(Bookmark).where(Bookmark.user_id == USER_ID, Bookmark.show_on_home.is_(True))
+    q = (select(Bookmark).where(Bookmark.user_id == uid(), Bookmark.show_on_home.is_(True))
          .order_by(Bookmark.position, Bookmark.id))
-    titles = {p.id: p.title for p in db.scalars(select(LearningPath))}
+    titles = {p.id: p.title for p in db.scalars(select(LearningPath).where(LearningPath.user_id == uid()))}
     return [bookmark_out(b, titles) for b in db.scalars(q)
             if b.path_id is None or (path is not None and b.path_id == path.id)]
 
 
 @router.get("")
 def home(path_id: int | None = None, db: Session = Depends(get_db)):
-    user = db.get(User, USER_ID)
-    all_paths = list(db.scalars(select(LearningPath).order_by(LearningPath.position, LearningPath.id)))
+    user = db.get(User, uid())
+    all_paths = list(db.scalars(select(LearningPath).where(LearningPath.user_id == uid()).order_by(LearningPath.position, LearningPath.id)))
     visible = [p for p in all_paths if p.show_on_home]
     paths = [path_summary(db, p) for p in visible]
     hidden = len(all_paths) - len(visible)

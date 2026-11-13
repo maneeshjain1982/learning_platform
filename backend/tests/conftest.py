@@ -138,4 +138,15 @@ def client(fake_llm):
     from backend.main import app
 
     with TestClient(app) as c:
+        assert c.post("/api/auth/login", json={"username": "admin", "password": "admin"}).status_code == 200
         yield c
+
+
+@pytest.fixture()
+def user_client(client):
+    """A second browser signed in as the plain `user` account (the admin `client` stays signed in)."""
+    from backend.main import app
+
+    c = TestClient(app)
+    assert c.post("/api/auth/login", json={"username": "user", "password": "user"}).status_code == 200
+    return c

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..agents import orchestrator
 from ..db import get_db
 from ..models import AgentRun, LearningPath, LearningRequirement
-from .common import USER_ID, get_or_404, lesson_resources, path_summary, progress_map, run_out, saved_ids, spawn
+from .common import uid, get_or_404, lesson_resources, path_summary, progress_map, run_out, saved_ids, spawn
 
 router = APIRouter(prefix="/api", tags=["paths"])
 
@@ -27,7 +27,7 @@ class RequirementIn(BaseModel):
 
 @router.post("/requirements")
 async def create_requirement(body: RequirementIn, db: Session = Depends(get_db)):
-    req = LearningRequirement(user_id=USER_ID, **body.model_dump())
+    req = LearningRequirement(user_id=uid(), **body.model_dump())
     db.add(req)
     db.commit()
     run_id = orchestrator.start_build(req.id)
@@ -50,7 +50,7 @@ def list_runs(active: bool = False, db: Session = Depends(get_db)):
 
 @router.get("/paths")
 def list_paths(db: Session = Depends(get_db)):
-    paths = db.scalars(select(LearningPath).order_by(LearningPath.position, LearningPath.id)).all()
+    paths = db.scalars(select(LearningPath).where(LearningPath.user_id == uid()).order_by(LearningPath.position, LearningPath.id)).all()
     return [path_summary(db, p) for p in paths]
 
 

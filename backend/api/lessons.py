@@ -10,7 +10,7 @@ from ..agents import orchestrator
 from ..agents.base import attach
 from ..db import get_db
 from ..models import Lesson, LessonResource, Progress, Resource, utcnow
-from .common import USER_ID, get_or_404, lesson_resources, module_links, progress_map, saved_ids, spawn
+from .common import uid, get_or_404, lesson_resources, module_links, progress_map, saved_ids, spawn
 
 router = APIRouter(prefix="/api/lessons", tags=["lessons"])
 
@@ -75,13 +75,13 @@ class ProgressIn(BaseModel):
 @router.post("/{lesson_id}/progress")
 def set_progress(lesson_id: int, body: ProgressIn, db: Session = Depends(get_db)):
     get_or_404(db, Lesson, lesson_id)
-    p = db.get(Progress, (USER_ID, lesson_id))
+    p = db.get(Progress, (uid(), lesson_id))
     if body.status == "todo":
         if p:
             db.delete(p)
     else:
         if p is None:
-            p = Progress(user_id=USER_ID, lesson_id=lesson_id, status="doing", minutes_spent=0)
+            p = Progress(user_id=uid(), lesson_id=lesson_id, status="doing", minutes_spent=0)
             db.add(p)
         if body.status == "done" and p.status != "done":
             p.completed_at = utcnow()

@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { AskDrawer, AskFab, AskProvider } from "./components/AskLLM";
+import { AuthGate, useMe, useSignOut } from "./components/Auth";
 import { Icon } from "./components/ui";
 import Career from "./pages/Career";
 import ClaudeAcademy from "./pages/ClaudeAcademy";
@@ -17,7 +18,7 @@ import PathPage, { PathsList } from "./pages/Paths";
 import Settings from "./pages/Settings";
 import Setup from "./pages/Setup";
 
-type NavItem = { to: string; label: string; hint: string };
+type NavItem = { to: string; label: string; hint: string; admin?: boolean };
 type NavGroupDef = { id: string; label: string; items: NavItem[] };
 
 const GROUPS: NavGroupDef[] = [
@@ -25,7 +26,7 @@ const GROUPS: NavGroupDef[] = [
     { to: "/paths", label: "My paths", hint: "Your learning paths and progress" },
     { to: "/claude", label: "Claude learning", hint: "Claude Academy courses and updates" },
     { to: "/voice", label: "Voice ASR/NLU", hint: "Adding Hindi or English to a voice assistant" },
-    { to: "/upskill", label: "Upskill Prep", hint: "Role research, question bank and mock practice" },
+    { to: "/upskill", label: "Upskill Prep", hint: "Role research, question bank and mock practice", admin: true },
     { to: "/setup", label: "New goal", hint: "Build a new path from a learning goal" },
   ] },
   { id: "library", label: "Library", items: [
@@ -38,8 +39,10 @@ const GROUPS: NavGroupDef[] = [
 function NavGroup({ g, open, setOpen, closeAll }: {
   g: NavGroupDef; open: boolean; setOpen: (v: boolean) => void; closeAll: () => void;
 }) {
+  const me = useMe();
+  const items = g.items.filter((i) => !i.admin || me.is_admin);
   const { pathname } = useLocation();
-  const active = g.items.some((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
+  const active = items.some((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -65,7 +68,7 @@ function NavGroup({ g, open, setOpen, closeAll }: {
       {open && (
         <ul id={`nav-${g.id}`} onClick={closeAll}
           className="md:absolute md:left-0 md:top-full md:mt-1.5 z-30 md:w-[300px] flex flex-col gap-0.5 p-1.5 md:bg-white md:border md:border-line md:rounded-xl md:shadow-lg ml-3 md:ml-0 border-l-2 border-line md:border-l">
-          {g.items.map((i) => (
+          {items.map((i) => (
             <li key={i.to}>
               <NavLink to={i.to} className={item}>
                 <span className="font-semibold">{i.label}</span>
@@ -86,6 +89,7 @@ function Nav() {
   const [menu, setMenu] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   useEffect(() => { setOpenGroup(null); setMenu(false); }, [pathname]);
+  const me = useMe();
   const profile = useQuery({ queryKey: ["profile"], queryFn: api.profile });
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -107,7 +111,7 @@ function Nav() {
           <NavLink to="/" end className={link} onClick={closeAll}>Home</NavLink>
           <NavGroup g={GROUPS[0]} open={openGroup === GROUPS[0].id} closeAll={closeAll}
             setOpen={(v) => setOpenGroup(v ? GROUPS[0].id : null)} />
-          <NavLink to="/career" className={link} onClick={closeAll}>Career</NavLink>
+          {me.is_admin && <NavLink to="/career" className={link} onClick={closeAll}>Career</NavLink>}
           <NavGroup g={GROUPS[1]} open={openGroup === GROUPS[1].id} closeAll={closeAll}
             setOpen={(v) => setOpenGroup(v ? GROUPS[1].id : null)} />
         </nav>
@@ -118,12 +122,57 @@ function Nav() {
           <input id="nav-q" type="search" value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Search videos, papers, courses…" className="flex-1 min-w-0 bg-transparent outline-none" />
         </form>
-        <Link to="/settings" aria-label="Profile and settings" title="Profile and settings"
-          className="hidden md:flex w-11 h-11 rounded-full border border-line2 bg-white font-semibold items-center justify-center hover:bg-ground">
-          {(profile.data?.name ?? "L").slice(0, 1).toUpperCase()}
-        </Link>
+        <AccountMenu name={profile.data?.name ?? me.name} open={openGroup === "account"}
+          setOpen={(v) => setOpenGroup(v ? "account" : null)} />
       </div>
     </header>
+  );
+}
+
+/** The round avatar: who is signed in, Settings and Sign out. */
+function AccountMenu({ name, open, setOpen }: { name: string; open: boolean; setOpen: (v: boolean) => void }) {
+  const me = useMe();
+  const signOut = useSignOut();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open, setOpen]);
+  return (
+    <div ref={ref} className="relative max-md:absolute max-md:right-[68px] max-md:top-3.5">
+      <button type="button" aria-label={`Account: ${name}`} aria-expanded={open} aria-controls="account-menu"
+        onClick={() => setOpen(!open)}
+        className="w-11 h-11 rounded-full border border-line2 bg-white font-semibold flex items-center justify-center hover:bg-ground">
+        {name.slice(0, 1).toUpperCase()}
+      </button>
+      {open && (
+        <div id="account-menu" className="absolute right-0 top-full mt-1.5 z-30 w-[240px] bg-white border border-line rounded-xl shadow-lg p-1.5 flex flex-col">
+          <div className="px-3 py-2.5 border-b border-line mb-1">
+            <p className="font-semibold truncate">{name}</p>
+            <p className="text-xs text-muted">Signed in as {me.username} · {me.is_admin ? "Admin" : "User"}</p>
+          </div>
+          <Link to="/settings" onClick={() => setOpen(false)} className="px-3 py-2.5 rounded-lg text-body hover:bg-ground">Profile and settings</Link>
+          <button type="button" onClick={() => signOut.mutate()} className="text-left px-3 py-2.5 rounded-lg text-body hover:bg-ground">Sign out</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Pages for the admin account only (Career, Upskill Prep). The server refuses them too. */
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const me = useMe();
+  if (me.is_admin) return <>{children}</>;
+  return (
+    <main className="max-w-[640px] mx-auto w-full px-4 sm:px-8 py-16 flex flex-col gap-3 items-start">
+      <h1 className="h-display text-2xl">Not available for this account</h1>
+      <p className="text-body">This area is for the admin account.</p>
+      <Link className="btn-outline" to="/">Go to Home</Link>
+    </main>
   );
 }
 
@@ -134,6 +183,10 @@ function OldInterviewLink() {
 }
 
 export default function App() {
+  return <AuthGate><SignedInApp /></AuthGate>;
+}
+
+function SignedInApp() {
   const location = useLocation();
   const onLesson = location.pathname.startsWith("/lessons/");
   return (
@@ -147,15 +200,15 @@ export default function App() {
           <Route path="/paths/:id" element={<PathPage />} />
           <Route path="/lessons/:id" element={<LessonPage />} />
           <Route path="/claude" element={<ClaudeAcademy />} />
-          <Route path="/career" element={<Career />} />
+          <Route path="/career" element={<AdminOnly><Career /></AdminOnly>} />
           <Route path="/voice" element={<Navigate to="/voice/hi" replace />} />
           <Route path="/voice/:lang" element={<Voice />} />
           <Route path="/hindi-voice" element={<Navigate to="/voice/hi" replace />} />
           <Route path="/links" element={<Links />} />
-          <Route path="/upskill" element={<InterviewList />} />
-          <Route path="/upskill/new" element={<InterviewConfigure />} />
-          <Route path="/upskill/:id" element={<InterviewPage />} />
-          <Route path="/upskill/:id/edit" element={<InterviewConfigure />} />
+          <Route path="/upskill" element={<AdminOnly><InterviewList /></AdminOnly>} />
+          <Route path="/upskill/new" element={<AdminOnly><InterviewConfigure /></AdminOnly>} />
+          <Route path="/upskill/:id" element={<AdminOnly><InterviewPage /></AdminOnly>} />
+          <Route path="/upskill/:id/edit" element={<AdminOnly><InterviewConfigure /></AdminOnly>} />
           <Route path="/interview/*" element={<OldInterviewLink />} />
           <Route path="/discover" element={<Discover />} />
           <Route path="/settings" element={<Settings />} />

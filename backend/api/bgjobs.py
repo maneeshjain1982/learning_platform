@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..db import session_scope
 from ..models import User, utcnow
-from .common import USER_ID, iso, spawn
+from .common import uid, iso, spawn
 
 log = logging.getLogger("study.jobs")
 STALE_AFTER = timedelta(hours=6)  # backstop only; server start marks unfinished runs failed (recover_interrupted)
@@ -31,7 +31,7 @@ def read(user: User, key: str) -> dict:
 
 
 def write(db: Session, key: str, **changes) -> dict:
-    user = db.get(User, USER_ID)
+    user = db.get(User, uid())
     settings = dict(user.settings or {})
     jobs = dict(settings.get(ROOT) or {})
     st = {**read(user, key), **changes}
@@ -54,7 +54,7 @@ def public(st: dict) -> dict:
 def start(db: Session, key: str, work: Callable[[dict], Awaitable[dict[str, Any]]], **params) -> dict:
     """Start `work(previous_state)` in the background unless already running. Its returned dict is merged
     into the state with status=ready; an exception marks the job failed and keeps the previous result."""
-    user = db.get(User, USER_ID)
+    user = db.get(User, uid())
     previous = read(user, key)
     if previous.get("status") == "running":
         return previous
@@ -78,9 +78,10 @@ def start(db: Session, key: str, work: Callable[[dict], Awaitable[dict[str, Any]
 
 def recover_interrupted(db: Session) -> None:
     """Runs can't survive a server restart: mark any left 'running' as failed so the UI offers a retry."""
-    user = db.get(User, USER_ID)
-    jobs = dict(((user.settings or {}) if user else {}).get(ROOT) or {})
-    changed = {k: {**v, "status": "failed", "error": "Interrupted by a server restart. Try again."}
-               for k, v in jobs.items() if v.get("status") == "running"}
-    if changed:
-        user.settings = {**user.settings, ROOT: {**jobs, **changed}}
+    from sqlalchemy import select
+    for user in db.scalars(select(User)):
+        jobs = dict((user.settings or {}).get(ROOT) or {})
+        changed = {k: {**v, "status": "failed", "error": "Interrupted by a server restart. Try again."}
+                   for k, v in jobs.items() if v.get("status") == "running"}
+        if changed:
+            user.settings = {**user.settings, ROOT: {**jobs, **changed}}

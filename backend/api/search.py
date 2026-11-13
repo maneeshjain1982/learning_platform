@@ -13,7 +13,7 @@ from ..db import get_db
 from ..llm import LLMUnavailable, get_llm
 from ..models import CacheEntry, Resource, SavedResource, utcnow
 from ..providers import paper_search, search_links
-from .common import USER_ID, get_or_404, resource_out, saved_ids
+from .common import uid, get_or_404, resource_out, saved_ids
 
 router = APIRouter(prefix="/api", tags=["search"])
 CACHE_TTL = timedelta(days=1)
@@ -83,7 +83,7 @@ def links(q: str = Query(min_length=1, max_length=200)):
 
 @router.get("/saved")
 def saved(db: Session = Depends(get_db)):
-    rows = db.scalars(select(SavedResource).where(SavedResource.user_id == USER_ID)
+    rows = db.scalars(select(SavedResource).where(SavedResource.user_id == uid())
                       .order_by(SavedResource.saved_at.desc()))
     return [resource_out(s.resource, saved={s.resource_id}) for s in rows]
 
@@ -91,15 +91,15 @@ def saved(db: Session = Depends(get_db)):
 @router.post("/resources/{resource_id}/save")
 def save(resource_id: int, db: Session = Depends(get_db)):
     get_or_404(db, Resource, resource_id)
-    if not db.get(SavedResource, (USER_ID, resource_id)):
-        db.add(SavedResource(user_id=USER_ID, resource_id=resource_id))
+    if not db.get(SavedResource, (uid(), resource_id)):
+        db.add(SavedResource(user_id=uid(), resource_id=resource_id))
         db.commit()
     return {"saved": True}
 
 
 @router.delete("/resources/{resource_id}/save")
 def unsave(resource_id: int, db: Session = Depends(get_db)):
-    s = db.get(SavedResource, (USER_ID, resource_id))
+    s = db.get(SavedResource, (uid(), resource_id))
     if s:
         db.delete(s)
         db.commit()

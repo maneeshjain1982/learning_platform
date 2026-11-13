@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useMe } from "../components/Auth";
 import { ErrorBox, Thinking } from "../components/ui";
 
 export default function Settings() {
@@ -37,6 +38,8 @@ export default function Settings() {
         </div>
         {save.isError && <ErrorBox error={save.error} />}
       </form>
+
+      <PasswordCard />
 
       <section className="card p-6 flex flex-col gap-4" aria-labelledby="llm-h">
         <h2 id="llm-h" className="text-lg font-semibold">LLM (via LLM Bridge)</h2>
@@ -76,5 +79,51 @@ export default function Settings() {
         {restore.isError && <ErrorBox error={restore.error} />}
       </section>
     </main>
+  );
+}
+
+function PasswordCard() {
+  const qc = useQueryClient();
+  const me = useMe();
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const change = useMutation({
+    mutationFn: () => api.changePassword(cur, next),
+    onSuccess: (m) => { qc.setQueryData(["me"], m); setCur(""); setNext(""); setAgain(""); },
+  });
+  const mismatch = again.length > 0 && next !== again;
+  return (
+    <form className="card p-6 flex flex-col gap-4" aria-labelledby="pw-h"
+      onSubmit={(e) => { e.preventDefault(); if (!mismatch) change.mutate(); }}>
+      <div>
+        <h2 id="pw-h" className="text-lg font-semibold">Password</h2>
+        <p className="text-sm text-muted mt-1">Signed in as <strong>{me.username}</strong> ({me.is_admin ? "admin" : "user"} account).</p>
+      </div>
+      {me.default_password && (
+        <p className="text-sm bg-pp-bg text-pp-fg rounded-lg px-3 py-2">You're still using the default password. Change it so only you can sign in.</p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pw-cur" className="label">Current</label>
+          <input id="pw-cur" type="password" className="input" autoComplete="current-password" required value={cur} onChange={(e) => setCur(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pw-new" className="label">New (4+ characters)</label>
+          <input id="pw-new" type="password" className="input" autoComplete="new-password" minLength={4} required value={next} onChange={(e) => setNext(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pw-again" className="label">New again</label>
+          <input id="pw-again" type="password" className="input" autoComplete="new-password" required value={again}
+            aria-invalid={mismatch} onChange={(e) => setAgain(e.target.value)} />
+        </div>
+      </div>
+      {mismatch && <p className="text-sm text-[#B42318]" role="alert">The new passwords don't match.</p>}
+      <div className="flex items-center gap-3">
+        <button type="submit" className="btn-primary self-start" disabled={change.isPending || mismatch}>Change password</button>
+        {change.isSuccess && <span className="text-sm text-ok" role="status">Password changed</span>}
+      </div>
+      {change.isError && <ErrorBox error={change.error} />}
+    </form>
   );
 }

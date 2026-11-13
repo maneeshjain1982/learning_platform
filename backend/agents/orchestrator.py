@@ -50,7 +50,7 @@ async def run_build(run_id: int, requirement_id: int, llm: LLMClient | None = No
         plan = await CurriculumPlanner(llm).run(req, topics)
         with session_scope() as db:
             path = LearningPath(
-                requirement_id=requirement_id, title=topics.title, summary=topics.summary, level=req.level,
+                requirement_id=requirement_id, user_id=req.user_id, title=topics.title, summary=topics.summary, level=req.level,
                 hours_per_week=req.hours_per_week, weeks=req.weeks, sources=req.sources, status="building",
             )
             for mi, m in enumerate(plan.modules):

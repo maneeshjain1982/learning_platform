@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .agents.base import attach, upsert_resource
+from .auth import ensure_accounts, user_slug
 from .agents.search import titles_match
 from .db import init_db, session_scope
 from .models import LearningPath, Lesson, Module, User
@@ -22,25 +23,32 @@ log = logging.getLogger("study.seed")
 
 
 def ensure_user(db: Session) -> User:
-    user = db.get(User, 1)
-    if user is None:
-        user = User(id=1, name="Learner", settings={})
-        db.add(user)
-        db.flush()
-    return user
+    """Create the admin and user accounts if missing; returns the admin."""
+    return ensure_accounts(db)[0]
 
 
-def seed_structure(db: Session) -> list[int]:
-    """Create any missing seed paths. Returns ids of newly created paths. No network."""
-    user = ensure_user(db)
+def seed_structure(db: Session, user_ids: list[int] | None = None) -> list[int]:
+    """Create any missing starter paths for each account (all accounts by default). Returns ids of newly
+    created paths. No network."""
+    accounts = ensure_accounts(db)
+    created = []
+    for user in accounts:
+        if user_ids is not None and user.id not in user_ids:
+            continue
+        created += _seed_for(db, user)
+    return created
+
+
+def _seed_for(db: Session, user: User) -> list[int]:
     removed = set((user.settings or {}).get("removed_seeds", []))  # starter paths the user deleted
     created = []
     for spec in SEED_PATHS:
+        slug = user_slug(spec["slug"], user.id)
         if spec["slug"] in removed:
             continue
-        if db.scalars(select(LearningPath).where(LearningPath.slug == spec["slug"])).first():
+        if db.scalars(select(LearningPath).where(LearningPath.slug == slug)).first():
             continue
-        path = LearningPath(slug=spec["slug"], title=spec["title"], summary=spec["summary"], level=spec["level"],
+        path = LearningPath(slug=slug, user_id=user.id, title=spec["title"], summary=spec["summary"], level=spec["level"],
                             hours_per_week=spec["hours_per_week"], weeks=spec["weeks"],
                             sources=["youtube", "coursera", "udemy", "arxiv", "semantic_scholar"],
                             status="ready", is_seed=True)
@@ -57,16 +65,28 @@ def seed_structure(db: Session) -> list[int]:
     return created
 
 
+def seed_papers_missing(db: Session) -> bool:
+    """True if some starter path has no papers yet (e.g. the server stopped while fetching them)."""
+    from .models import LessonResource
+    for path in db.scalars(select(LearningPath).where(LearningPath.is_seed.is_(True))):
+        ids = [l.id for m in path.modules for l in m.lessons]
+        if ids and not db.scalars(select(LessonResource).where(LessonResource.lesson_id.in_(ids),
+                                                               LessonResource.added_by == "seed").limit(1)).first():
+            return True
+    return False
+
+
 async def attach_seed_papers() -> int:
     """Look up each seed paper on arXiv by id; attach it only if the title matches. Returns papers attached."""
     with session_scope() as db:
         work = []  # (lesson_ids, [(arxiv_id, title)])
         for spec in SEED_PATHS:
-            path = db.scalars(select(LearningPath).where(LearningPath.slug == spec["slug"])).first()
-            if not path:
-                continue
-            for mod, m in zip(path.modules, spec["modules"]):
-                work.append(([l.id for l in mod.lessons], m["papers"]))
+            for user in db.scalars(select(User)):
+                path = db.scalars(select(LearningPath).where(LearningPath.slug == user_slug(spec["slug"], user.id))).first()
+                if not path:
+                    continue
+                for mod, m in zip(path.modules, spec["modules"]):
+                    work.append(([l.id for l in mod.lessons], m["papers"]))
 
     ids = sorted({pid for _, papers in work for pid, _ in papers})
     found = {}

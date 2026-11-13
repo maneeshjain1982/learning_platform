@@ -17,7 +17,7 @@ from ..providers import search_links
 
 log = logging.getLogger("study.api")
 _tasks: set[asyncio.Task] = set()
-USER_ID = 1
+from ..auth import uid  # noqa: E402,F401  (the signed-in user; re-exported for the routers)
 
 
 def spawn(coro: Coroutine) -> None:
@@ -33,11 +33,45 @@ def spawn(coro: Coroutine) -> None:
     task.add_done_callback(_done)
 
 
+def owner_of(obj) -> int | None:
+    """The account that owns a row, following lesson -> module -> path; None for shared rows."""
+    if isinstance(obj, Lesson):
+        obj = obj.module
+    if hasattr(obj, "path") and isinstance(getattr(obj, "path", None), LearningPath):
+        obj = obj.path
+    return getattr(obj, "user_id", None)
+
+
 def get_or_404(db: Session, model, id_: int):
+    """Fetch a row; rows that belong to another account look the same as missing ones."""
     obj = db.get(model, id_)
-    if obj is None:
+    if obj is None or (owner := owner_of(obj)) is not None and owner != uid():
         raise HTTPException(404, f"{model.__name__} {id_} not found")
     return obj
+
+
+def require_admin(db: Session) -> None:
+    from ..models import User
+    u = db.get(User, uid())
+    if u is None or u.role != "admin":
+        raise HTTPException(403, "Only the admin account can change shared content.")
+
+
+def qa_counts(db: Session, prefix: str = "") -> dict[str, dict]:
+    """Review-question counts per course/module slug, with the signed-in account's marks."""
+    from ..models import AcademyQA, QAMark
+    q = (select(AcademyQA.course_slug, QAMark.status, func.count())
+         .outerjoin(QAMark, (QAMark.qa_id == AcademyQA.id) & (QAMark.user_id == uid()))
+         .group_by(AcademyQA.course_slug, QAMark.status))
+    if prefix:
+        q = q.where(AcademyQA.course_slug.like(f"{prefix}%"))
+    out: dict[str, dict] = {}
+    for slug, status, n in db.execute(q):
+        d = out.setdefault(slug, {"total": 0, "known": 0, "review": 0})
+        d["total"] += n
+        if status in ("known", "review"):
+            d[status] += n
+    return out
 
 
 def iso(dt: datetime | None) -> str | None:
@@ -47,12 +81,12 @@ def iso(dt: datetime | None) -> str | None:
 def progress_map(db: Session, lesson_ids: list[int]) -> dict[int, Progress]:
     if not lesson_ids:
         return {}
-    rows = db.scalars(select(Progress).where(Progress.user_id == USER_ID, Progress.lesson_id.in_(lesson_ids)))
+    rows = db.scalars(select(Progress).where(Progress.user_id == uid(), Progress.lesson_id.in_(lesson_ids)))
     return {p.lesson_id: p for p in rows}
 
 
 def saved_ids(db: Session) -> set[int]:
-    return set(db.scalars(select(SavedResource.resource_id).where(SavedResource.user_id == USER_ID)))
+    return set(db.scalars(select(SavedResource.resource_id).where(SavedResource.user_id == uid())))
 
 
 def resource_out(r: Resource, *, why: str = "", saved: set[int] | None = None, added_by: str | None = None) -> dict:
@@ -109,7 +143,7 @@ def week_stats(db: Session, path: LearningPath | None) -> dict:
     since = utcnow() - timedelta(days=7)
     from ..models import ChatMessage, ChatSession
 
-    done_rows = db.scalars(select(Progress).where(Progress.user_id == USER_ID, Progress.status == "done",
+    done_rows = db.scalars(select(Progress).where(Progress.user_id == uid(), Progress.status == "done",
                                                   Progress.completed_at >= since)).all()
     minutes = 0
     for p in done_rows:
@@ -117,7 +151,7 @@ def week_stats(db: Session, path: LearningPath | None) -> dict:
         minutes += max(p.minutes_spent, lesson.est_minutes if lesson else 0)
     questions = db.scalar(
         select(func.count(ChatMessage.id)).join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .where(ChatSession.user_id == USER_ID, ChatMessage.role == "user", ChatMessage.created_at >= since)) or 0
+        .where(ChatSession.user_id == uid(), ChatMessage.role == "user", ChatMessage.created_at >= since)) or 0
     goal_h = path.hours_per_week if path else 5
     return {"minutes": minutes, "goal_minutes": goal_h * 60, "lessons_done": len(done_rows),
             "questions": questions}

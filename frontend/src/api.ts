@@ -242,6 +242,8 @@ export interface Providers {
   providers: { name: string; label: string; available: boolean; error: string | null; models: string[] }[];
 }
 
+export interface Me { id: number; username: string; name: string; role: "admin" | "user"; is_admin: boolean; default_password: boolean }
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -258,6 +260,8 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
       const j = await res.json();
       msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail ?? j);
     } catch { /* not JSON */ }
+    // Session expired or signed out in another tab: the app shows the sign-in page.
+    if (res.status === 401 && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event("auth:expired"));
     throw new ApiError(res.status, msg);
   }
   return res.json() as Promise<T>;
@@ -270,6 +274,10 @@ const del = (u: string) => req<{ ok: boolean }>("DELETE", u);
 type Ok = { ok: boolean };
 
 export const api = {
+  me: () => get<Me>("/api/auth/me"),
+  login: (username: string, password: string) => post<Me>("/api/auth/login", { username, password }),
+  logout: () => post<Ok>("/api/auth/logout"),
+  changePassword: (current: string, next: string) => post<Me>("/api/auth/password", { current, new: next }),
   home: (pathId?: number) => get<Home>(`/api/home${pathId ? `?path_id=${pathId}` : ""}`),
   focus: (lessonId: number) => post<{ text: string }>(`/api/home/focus/${lessonId}`),
   paths: () => get<PathSummary[]>("/api/paths"),
