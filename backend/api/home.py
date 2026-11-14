@@ -16,8 +16,8 @@ router = APIRouter(prefix="/api/home", tags=["home"])
 
 # Home page cards, in default order. "admin" cards only show for the admin account.
 CARDS = [("continue", "Continue learning"), ("week", "This week"), ("paths", "My paths"), ("news", "Tech News"),
-         ("picks", "Videos & papers for now"), ("links", "My links"), ("jobs", "Hot jobs")]
-ADMIN_CARDS = {"jobs"}
+         ("picks", "Videos & papers for now"), ("links", "My links")]
+ADMIN_CARDS: set[str] = set()  # Hot jobs has its own page
 DEFAULT_OFF = {"links"}
 
 

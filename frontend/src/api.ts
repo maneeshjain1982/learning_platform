@@ -124,9 +124,9 @@ export interface Certifications {
 export interface JobPosting {
   title: string; company: string; location: string; work_mode: string; seniority: string; posted: string; salary: string;
   url: string; summary: string; responsibilities: string[]; must_have: string[]; nice_to_have: string[]; skill_tags?: string[]; why_hot: string;
-  verified: boolean;
+  verified: boolean; match?: number; fits?: string[]; gaps?: string[];
 }
-export interface JobsParams { roles: string; location: string; count: number }
+export interface JobsParams { roles: string; country: string; location: string; count: number }
 export interface Jobs extends JobState {
   market_summary: string; trends: string[]; jobs: JobPosting[]; top_skills: { skill: string; count: number }[];
   dropped: number; params: JobsParams;
@@ -262,6 +262,47 @@ export interface NewsDigest extends JobState {
 }
 export interface LiveItem { id: string; title: string; url: string; discussion: string; site: string; points: number; comments: number; at: string }
 
+
+// ---------------------------------------------------------------- domains (knowledge base)
+export type SourceKind = "video" | "course" | "paper" | "article" | "docs" | "repo" | "model" | "dataset" | "book";
+export type Access = "free" | "login" | "paid" | "limited";
+export type TopicStatus = "draft" | "writing" | "ready" | "failed";
+export interface DomainBrief { id: number; slug: string; name: string; description: string; status: "building" | "ready" | "failed"; error: string | null; sections: number; topics: number; trusted_blogs: TrustedBlog[] }
+export interface TrustedBlog { name: string; url: string }
+export interface TopicBrief { id: number; title: string; blurb: string; status: TopicStatus; sources: number }
+export interface DomainDetail extends DomainBrief { section_list: { id: number; title: string; topics: TopicBrief[] }[] }
+export interface SourceAISummary {
+  type: "paper" | "source"; tldr: string; key_points?: string[]; best_for?: string; time_needed?: string; access_note?: string;
+  read_source?: boolean; problem?: string; method?: string; results?: string[]; limitations?: string[]; why_it_matters?: string; read_full_text?: boolean;
+}
+export interface TopicSource {
+  id: number; title: string; url: string; kind: SourceKind; site: string; access: Access; summary: string; author: string;
+  year: number | null; duration: string; facts: Record<string, string>; ai_summary: SourceAISummary | null;
+  summary_status: "none" | "writing" | "ready" | "failed";
+  blog: boolean; read_minutes: number | null; published: string; post_level: "beginner" | "intermediate" | "advanced" | null;
+}
+export interface TopicDetail extends TopicBrief {
+  overview: string; key_points: string[]; why: string; details_md: string; error: string | null; updated_at: string | null;
+  section: { id: number; title: string }; domain: { id: number; slug: string; name: string };
+  source_list: TopicSource[]; bookmarked: boolean;
+  blog_status: "none" | "finding" | "done" | "failed"; blog_error: string | null;
+}
+export interface TopicHit extends TopicBrief { overview: string; section?: string; domain: { slug: string; name: string }; updated_at?: string }
+export type WorkMode = "any" | "remote" | "hybrid" | "onsite";
+export type CompanyType = "any" | "big_tech" | "startup" | "enterprise";
+export interface SearchParams {
+  use_profile: boolean; query: string; domain: string; country: string; location: string; count: number;
+  years: number | null; level: string; work_mode: WorkMode; company_type: CompanyType; posted_days: 7 | 14 | 30;
+  min_salary: string; visa: boolean; extra: string;
+}
+export interface JobSearch extends Omit<Jobs, "params"> { params: SearchParams; matched: boolean }
+export interface CareerProfile {
+  headline: string; years: number; level: string; domains: string[]; skills: string[]; roles: string[]; summary: string;
+  highlights: string[]; cv_name?: string; cv_text?: string; updated_at?: string;
+}
+export interface ReportedQ { question: string; round: string; role: string; difficulty: string; answer_outline: string[]; source_name: string; url: string; year: number | null; verified: boolean }
+export interface Faang extends JobState { company: string; process: string; questions: ReportedQ[]; dropped: number; params: { role?: string; domain?: string; count?: number } }
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -292,6 +333,44 @@ const del = (u: string) => req<{ ok: boolean }>("DELETE", u);
 type Ok = { ok: boolean };
 
 export const api = {
+  domains: () => get<DomainBrief[]>("/api/domains"),
+  domain: (key: string) => get<DomainDetail>(`/api/domains/${key}`),
+  createDomain: (b: { name: string; description: string; build: boolean; max_topics?: number }) => post<DomainBrief>("/api/domains", b),
+  updateDomain: (id: number, b: { name?: string; description?: string; trusted_blogs?: TrustedBlog[] }) => patch<DomainBrief>(`/api/domains/${id}`, b),
+  deleteDomain: (id: number) => del(`/api/domains/${id}`),
+  reorderDomains: (ids: number[]) => req<DomainBrief[]>("PUT", "/api/domains-order", ids),
+  buildDomain: (id: number) => post<DomainBrief>(`/api/domains/${id}/build`),
+  fillDomain: (id: number) => post<{ started: number }>(`/api/domains/${id}/fill`),
+  domainBlogs: (id: number) => post<{ started: number }>(`/api/domains/${id}/blogs`),
+  topicBlogs: (id: number) => post<TopicDetail>(`/api/topics/${id}/blogs`),
+  addSection: (domainId: number, title: string) => post<{ id: number }>(`/api/domains/${domainId}/sections`, { title }),
+  renameSection: (id: number, title: string) => patch<{ id: number }>(`/api/sections/${id}`, { title }),
+  deleteSection: (id: number) => del(`/api/sections/${id}`),
+  addTopic: (sectionId: number, b: { title: string; blurb?: string; auto: boolean }) => post<TopicDetail>(`/api/sections/${sectionId}/topics`, b),
+  topic: (id: number) => get<TopicDetail>(`/api/topics/${id}`),
+  updateTopic: (id: number, b: Partial<Pick<TopicDetail, "title" | "blurb" | "overview" | "key_points" | "why" | "details_md">>) => patch<TopicDetail>(`/api/topics/${id}`, b),
+  deleteTopic: (id: number) => del(`/api/topics/${id}`),
+  rewriteTopic: (id: number, find_sources: boolean) => post<TopicDetail>(`/api/topics/${id}/rewrite`, { find_sources }),
+  bookmarkTopic: (id: number, on: boolean) => req<{ bookmarked: boolean }>("PUT", `/api/topics/${id}/bookmark`, { on }),
+  bookmarks: () => get<TopicHit[]>("/api/topics/bookmarks"),
+  recentTopics: (limit = 8) => get<TopicHit[]>(`/api/topics/recent?limit=${limit}`),
+  searchTopics: (q: string) => get<TopicHit[]>(`/api/topics/search?q=${encodeURIComponent(q)}`),
+  matchTopics: (terms: string[]) => post<Record<string, TopicHit[]>>("/api/topics/match", { terms }),
+  addSource: (topicId: number, b: { url: string; title?: string; summary?: string; access?: Access }) => post<TopicSource>(`/api/topics/${topicId}/sources`, b),
+  updateSource: (id: number, b: Partial<Pick<TopicSource, "title" | "url" | "summary" | "access" | "kind">>) => patch<TopicSource>(`/api/sources/${id}`, b),
+  deleteSource: (id: number) => del(`/api/sources/${id}`),
+  summarizeSource: (id: number) => post<TopicSource>(`/api/sources/${id}/summary`),
+  deleteSourceSummary: (id: number) => req<TopicSource>("DELETE", `/api/sources/${id}/summary`),
+  jobSearch: () => get<JobSearch>("/api/career/search"),
+  runJobSearch: (b: Partial<SearchParams>) => post<JobSearch>("/api/career/search", b),
+  careerProfile: () => get<{ profile: CareerProfile | null }>("/api/career/profile"),
+  uploadCV: (b: { filename?: string; content_b64?: string; text?: string }) =>
+    post<{ profile: CareerProfile }>("/api/career/profile/cv", b),
+  editProfile: (b: Partial<CareerProfile>) => req<{ profile: CareerProfile }>("PUT", "/api/career/profile", b),
+  deleteProfile: () => req<{ profile: null }>("DELETE", "/api/career/profile"),
+  faangList: () => get<{ companies: string[]; loaded: Record<string, string | null> }>("/api/career/faang"),
+  faang: (company: string) => get<Faang>(`/api/career/faang?company=${encodeURIComponent(company)}`),
+  refreshFaang: (b: { company: string; role: string; domain: string; count: number }) => post<Faang>("/api/career/faang/refresh", b),
   me: () => get<Me>("/api/auth/me"),
   editItem: (scope: string, key: string, fields: Record<string, string>) => post<Ok>("/api/content/edit", { scope, key, fields }),
   deleteItem: (scope: string, key: string) => post<Ok & { for_everyone: boolean }>("/api/content/delete", { scope, key }),

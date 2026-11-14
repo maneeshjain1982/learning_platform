@@ -367,3 +367,74 @@ class ContentEdit(Base):
     fields: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     hidden: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+# ---------------------------------------------------------------- domains (shared knowledge base)
+# Domain > section > topic > source. Shared by every account; only the admin changes them.
+
+class Domain(Base):
+    __tablename__ = "domains"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(80), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text, default="")
+    position: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(String(20), default="ready")  # building | ready | failed
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    trusted_blogs: Mapped[list[dict]] = mapped_column(JSON, default=list)  # [{name, url}] Blog Scout checks first
+
+    sections: Mapped[list["DomainSection"]] = relationship(
+        back_populates="domain", order_by="DomainSection.idx", cascade="all, delete-orphan")
+
+
+class DomainSection(Base):
+    __tablename__ = "domain_sections"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domains.id", ondelete="CASCADE"))
+    idx: Mapped[int] = mapped_column(default=0)
+    title: Mapped[str] = mapped_column(String(200))
+
+    domain: Mapped[Domain] = relationship(back_populates="sections")
+    topics: Mapped[list["Topic"]] = relationship(
+        back_populates="section", order_by="Topic.idx", cascade="all, delete-orphan")
+
+
+class Topic(Base):
+    __tablename__ = "topics"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    section_id: Mapped[int] = mapped_column(ForeignKey("domain_sections.id", ondelete="CASCADE"))
+    idx: Mapped[int] = mapped_column(default=0)
+    title: Mapped[str] = mapped_column(String(200))
+    blurb: Mapped[str] = mapped_column(Text, default="")              # one line, used before a summary exists
+    overview: Mapped[str] = mapped_column(Text, default="")           # executive summary: 2-3 sentences
+    key_points: Mapped[list[str]] = mapped_column(JSON, default=list)  # 3-6 bullets
+    why: Mapped[str] = mapped_column(Text, default="")                # why it matters, one sentence
+    details_md: Mapped[str] = mapped_column(Text, default="")         # optional longer notes
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft | writing | ready | failed
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+    blog_status: Mapped[str] = mapped_column(String(20), default="none")  # none | finding | done | failed
+    blog_error: Mapped[Optional[str]] = mapped_column(Text)
+
+    section: Mapped[DomainSection] = relationship(back_populates="topics")
+    sources: Mapped[list["TopicSource"]] = relationship(
+        back_populates="topic", order_by="TopicSource.idx", cascade="all, delete-orphan")
+
+
+class TopicSource(Base):
+    __tablename__ = "topic_sources"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"))
+    idx: Mapped[int] = mapped_column(default=0)
+    title: Mapped[str] = mapped_column(String(500))
+    url: Mapped[str] = mapped_column(String(1000))
+    kind: Mapped[str] = mapped_column(String(20), default="article")  # video|course|paper|article|docs|repo|model|dataset|book
+    site: Mapped[str] = mapped_column(String(80), default="")
+    access: Mapped[str] = mapped_column(String(10), default="free")   # free | login | paid | limited
+    summary: Mapped[str] = mapped_column(Text, default="")            # one or two lines
+    author: Mapped[str] = mapped_column(String(300), default="")
+    meta: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # year, duration, ai_summary, ...
+    summary_status: Mapped[str] = mapped_column(String(20), default="none")  # none | writing | ready | failed
+
+    topic: Mapped[Topic] = relationship(back_populates="sources")

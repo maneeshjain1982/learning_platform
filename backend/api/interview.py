@@ -15,7 +15,8 @@ from ..agents import interview_runs as runs
 from ..agents.interview import MockInterviewer
 from ..db import get_db
 from ..llm import LLMUnavailable, get_llm
-from ..models import (AgentRun, InterviewPrep, InterviewQuestion, InterviewSkill, LearningPath, PracticeAttempt)
+from ..models import (AgentRun, InterviewPrep, InterviewQuestion, InterviewSkill, LearningPath, PracticeAttempt,
+                      User)
 from .common import uid, get_or_404, iso, path_summary, run_out, spawn
 
 router = APIRouter(prefix="/api", tags=["interview"])
@@ -90,16 +91,31 @@ class PrepIn(BaseModel):
     questions_per_area: int = Field(6, ge=1, le=20)
     question_bar: Literal["top_ai", "big_tech", "standard"] = "top_ai"
     web_research: bool = True
+    build_plan: bool = Field(False, description="Also build a study path (old design); topics now come from Domains")
+    use_cv: bool = Field(True, description="With no background given, use the saved CV profile")
+
+
+def cv_background(db: Session) -> str:
+    """The saved CV profile as background for interview prep (contact details already removed)."""
+    from ..agents.career import profile_brief
+    prof = (db.get(User, uid()).settings or {}).get("career_profile")
+    if not prof:
+        return ""
+    return (profile_brief(prof) + "\n\nCV (contact details removed):\n" + (prof.get("cv_text") or ""))[:9000]
 
 
 @router.post("/interviews")
 async def create_prep(body: PrepIn, db: Session = Depends(get_db)):
-    prep = InterviewPrep(user_id=uid(), **{**body.model_dump(), "role_title": body.role_title.strip(),
-                                            "company": body.company.strip()})
+    background = body.background.strip()
+    if not background and body.use_cv:
+        background = cv_background(db)
+    prep = InterviewPrep(user_id=uid(), **{**body.model_dump(exclude={"build_plan", "use_cv"}),
+                                            "background": background,
+                                            "role_title": body.role_title.strip(), "company": body.company.strip()})
     db.add(prep)
     db.commit()
-    run_id = runs.start_build(prep.id)
-    spawn(runs.run_build(run_id, prep.id))
+    run_id = runs.start_build(prep.id, replace_plan=body.build_plan)
+    spawn(runs.run_build(run_id, prep.id, replace_plan=body.build_plan))
     return {"id": prep.id, "run_id": run_id}
 
 
@@ -161,7 +177,7 @@ def update_prep(prep_id: int, body: PrepPatch, db: Session = Depends(get_db)):
 
 
 class RebuildIn(BaseModel):
-    replace_plan: bool = True
+    replace_plan: bool = False
     replace_questions: bool = False
 
 

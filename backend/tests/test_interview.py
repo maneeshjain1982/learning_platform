@@ -14,7 +14,7 @@ def wait_run(client, run_id, timeout=15):
 
 def make_prep(client, **kw):
     body = {"role_title": "Agentic AI Architect", "seniority": "principal", "questions_per_area": 3,
-            "interview_date": (date.today() + timedelta(days=20)).isoformat(), "hours_per_week": 6, **kw}
+            "interview_date": (date.today() + timedelta(days=20)).isoformat(), "hours_per_week": 6, "build_plan": True, **kw}
     r = client.post("/api/interviews", json=body)
     assert r.status_code == 200, r.text
     run = wait_run(client, r.json()["run_id"])
@@ -115,3 +115,10 @@ def test_rebuild_keeps_practised_and_own_questions(client, fake_llm):
 
     assert client.delete(f"/api/interviews/{pid}").status_code == 200
     assert client.get(f"/api/paths/{prep['path_id']}").status_code == 404
+
+
+def test_prep_without_study_path(client, fake_llm):
+    pid, run = make_prep(client, build_plan=False)
+    assert "plan" not in [s["agent"] for s in run["steps"]]
+    p = client.get(f"/api/interviews/{pid}").json()
+    assert p["path"] is None and p["skills"] and p["stats"]

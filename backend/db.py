@@ -46,6 +46,8 @@ _NEW_COLUMNS = {
     "paths": {"user_id": "INTEGER NOT NULL DEFAULT 1", "show_on_home": "BOOLEAN NOT NULL DEFAULT 1", "position": "INTEGER NOT NULL DEFAULT 0",
               "kind": "VARCHAR(20) NOT NULL DEFAULT 'learning'"},
     "agent_runs": {"interview_id": "INTEGER REFERENCES interview_preps(id) ON DELETE SET NULL"},
+    "domains": {"trusted_blogs": "JSON NOT NULL DEFAULT '[]'"},
+    "topics": {"blog_status": "VARCHAR(20) NOT NULL DEFAULT 'none'", "blog_error": "TEXT"},
 }
 
 

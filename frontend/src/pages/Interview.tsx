@@ -1,4 +1,4 @@
-// One Upskill Prep companion: Overview, Skills & tech, Prep plan, Questions, Mock interview.
+// One Interview Prep: suggested topics (linked to your domains), questions, mock interview, and the role/JD.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -7,11 +7,12 @@ import {
 } from "../api";
 import { useAsk } from "../components/AskLLM";
 import { IconButton, Modal } from "../components/Manage";
-import { AgentSteps, ErrorBox, Icon, Markdown, ProgressBar, Ring, Thinking } from "../components/ui";
-import { QTYPES, QTYPE_LABEL, daysLabel } from "./InterviewSetup";
+import { AgentSteps, ErrorBox, Icon, Markdown, Thinking } from "../components/ui";
+import { CareerMain } from "./Jobs";
+import { QTYPES, QTYPE_LABEL } from "./InterviewSetup";
 
 const TABS = [
-  ["overview", "Overview"], ["skills", "Skills & tech"], ["plan", "Prep plan"], ["questions", "Questions"], ["mock", "Mock interview"],
+  ["topics", "Suggested topics"], ["questions", "Questions"], ["mock", "Mock interview"], ["role", "Role & JD"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -31,7 +32,8 @@ export default function InterviewPage() {
   const id = Number(useParams().id);
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const tab = (params.get("tab") as Tab) || "overview";
+  const raw = params.get("tab") as Tab | null;
+  const tab: Tab = raw && TABS.some(([v]) => v === raw) ? raw : "topics";
   const go = (t: Tab, extra: Record<string, string> = {}) => setParams({ tab: t, ...extra });
 
   const prep = useQuery({ queryKey: ["interview", id], queryFn: () => api.interview(id) });
@@ -40,7 +42,6 @@ export default function InterviewPage() {
     queryKey: ["run", runId], queryFn: () => api.run(runId!), enabled: !!runId,
     refetchInterval: (q) => (q.state.data?.status === "running" || !q.state.data ? 2500 : false),
   });
-  // While agents run, refresh the page data every few seconds so results appear as they land.
   useEffect(() => {
     if (!runId) return;
     const t = setInterval(() => qc.invalidateQueries({ queryKey: ["interview", id] }), 6000);
@@ -50,30 +51,28 @@ export default function InterviewPage() {
     if (run.data && run.data.status !== "running") qc.invalidateQueries();
   }, [run.data?.status, qc]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (prep.isLoading) return <main className="p-8"><Thinking label="Loading…" /></main>;
-  if (prep.isError) return <main className="p-8"><ErrorBox error={prep.error} onRetry={() => prep.refetch()} /></main>;
+  if (prep.isLoading) return <CareerMain><Thinking label="Loading…" /></CareerMain>;
+  if (prep.isError) return <CareerMain><ErrorBox error={prep.error} onRetry={() => prep.refetch()} /></CareerMain>;
   const p = prep.data!;
   const liveRun = run.data ?? p.last_run;
   const running = liveRun?.status === "running";
 
   return (
-    <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-6">
+    <CareerMain>
       <Header p={p} />
       {liveRun && (running || liveRun.status === "failed") && (
         <section aria-labelledby="run-h" className="card p-5 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 id="run-h" className="font-semibold flex-1">
-              {running ? "Your Upskill Prep agents are working" : "The last agent run had a problem"}
-            </h2>
+            <h2 id="run-h" className="font-semibold flex-1">{running ? "Preparing your interview kit" : "The last run had a problem"}</h2>
             {running && <Thinking label="Working" />}
           </div>
-          {running && <p className="text-sm text-muted">This takes about 10 minutes. Results appear in the tabs below as each agent finishes; you can leave this page.</p>}
-          <AgentSteps steps={liveRun.steps} />
+          {running && <p className="text-sm text-muted">About 5–10 minutes. Results appear in the tabs below as each step finishes.</p>}
+          <AgentSteps steps={liveRun.steps.filter((s) => s.agent !== "coach")} />
           {liveRun.error && <ErrorBox error={liveRun.error} />}
         </section>
       )}
 
-      <div role="tablist" aria-label="Upskill Prep" className="flex flex-wrap gap-1 border-b border-line">
+      <div role="tablist" aria-label="Interview prep" className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map(([v, l]) => (
           <button key={v} type="button" role="tab" aria-selected={tab === v} onClick={() => go(v)}
             className={`px-4 py-3 -mb-px border-b-2 font-semibold ${tab === v ? "border-accent text-accent-dark" : "border-transparent text-body hover:text-ink"}`}>
@@ -83,13 +82,12 @@ export default function InterviewPage() {
       </div>
 
       <div role="tabpanel">
-        {tab === "overview" && <Overview p={p} go={go} />}
-        {tab === "skills" && <Skills p={p} go={go} />}
-        {tab === "plan" && <Plan p={p} />}
+        {tab === "topics" && <Topics p={p} go={go} />}
         {tab === "questions" && <Questions p={p} running={running} go={go} initialArea={params.get("area") ?? ""} />}
         {tab === "mock" && <Mock p={p} initialQ={Number(params.get("q")) || null} />}
+        {tab === "role" && <Role p={p} />}
       </div>
-    </main>
+    </CareerMain>
   );
 }
 
@@ -98,127 +96,122 @@ function Header({ p }: { p: InterviewDetail }) {
   const qc = useQueryClient();
   const del = useMutation({
     mutationFn: () => api.deleteInterview(p.id, true),
-    onSuccess: () => { qc.invalidateQueries(); navigate("/upskill"); },
+    onSuccess: () => { qc.invalidateQueries(); navigate("/career/prep"); },
   });
   return (
-    <div className="flex flex-wrap items-start gap-5">
-      <div className="flex-1 min-w-[280px] flex flex-col gap-2">
-        <Link to="/upskill" className="text-sm text-accent font-semibold">← Upskill Prep</Link>
-        <h1 className="h-display text-3xl sm:text-4xl">{p.role_title}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-          {p.company && <span className="font-semibold text-body">{p.company}</span>}
-          <span className="chip bg-[#F1F3F6] text-body capitalize">{p.seniority}</span>
-          <span className="chip bg-accent-soft text-accent-dark">{daysLabel(p.stats.days_left)}</span>
-          <span className="chip bg-[#F1F3F6] text-body">{p.question_bar === "top_ai" ? "Top AI company bar" : p.question_bar === "big_tech" ? "Big tech bar" : "Standard bar"}</span>
-          {!p.jd_text && <span className="chip bg-[#F1F3F6] text-body">No job description: based on research</span>}
-        </div>
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Link to={`/upskill/${p.id}/edit`} className="btn-outline btn-sm"><Icon.edit size={15} /> Edit configuration</Link>
-          <button type="button" className="btn-outline btn-sm text-yt-fg" disabled={del.isPending}
-            onClick={() => { if (confirm(`Delete the "${p.role_title}" companion with its questions, practice history and prep plan?`)) del.mutate(); }}>
-            <Icon.trash size={15} /> Delete
-          </button>
-        </div>
-        {del.isError && <ErrorBox error={del.error} />}
+    <div className="flex flex-col gap-2">
+      <h1 className="h-display text-3xl">{p.role_title}</h1>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+        {p.company && <span className="font-semibold text-body">{p.company}</span>}
+        <span className="chip bg-[#F1F3F6] text-body capitalize">{p.seniority}</span>
+        <span className="chip bg-[#F1F3F6] text-body">{p.question_bar === "top_ai" ? "Top AI company bar" : p.question_bar === "big_tech" ? "Big tech bar" : "Standard bar"}</span>
+        {!p.jd_text && <span className="chip bg-[#F1F3F6] text-body">No JD: based on role research</span>}
       </div>
-      <div className="card p-4 flex items-center gap-4">
-        <Ring value={p.stats.readiness} max={100} label={`Readiness ${p.stats.readiness}%`} />
-        <div>
-          <p className="h-display text-[28px] leading-none">{p.stats.readiness}%</p>
-          <p className="text-muted text-sm">interview readiness</p>
-        </div>
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Link to={`/career/prep/${p.id}/edit`} className="btn-outline btn-sm"><Icon.edit size={15} /> Edit</Link>
+        <button type="button" className="btn-outline btn-sm" disabled={del.isPending}
+          onClick={() => { if (confirm(`Delete the interview prep for "${p.role_title}" with its questions?`)) del.mutate(); }}>
+          <Icon.trash size={15} /> Delete
+        </button>
       </div>
+      {del.isError && <ErrorBox error={del.error} />}
     </div>
   );
 }
 
-// ---------------------------------------------------------------- overview
+// ---------------------------------------------------------------- suggested topics
 
-function Overview({ p, go }: { p: InterviewDetail; go: (t: Tab, extra?: Record<string, string>) => void }) {
-  const qc = useQueryClient();
-  const coach = useMutation({ mutationFn: () => api.coach(p.id), onSuccess: () => qc.invalidateQueries({ queryKey: ["interview", p.id] }) });
-  const s = p.stats;
+function Topics({ p, go }: { p: InterviewDetail; go: (t: Tab, extra?: Record<string, string>) => void }) {
+  const groups = useMemo(() => {
+    const m = new Map<string, Skill[]>();
+    p.skills.forEach((s) => m.set(s.area, [...(m.get(s.area) ?? []), s]));
+    return [...m.entries()];
+  }, [p.skills]);
+  const names = p.skills.map((s) => s.name);
+  const match = useQuery({ queryKey: ["topic-match", p.id, names], queryFn: () => api.matchTopics(names), enabled: names.length > 0 });
+  if (!p.skills.length) return <p className="card p-6 text-muted">The skills appear here once the job description is read.</p>;
+  return (
+    <div className="flex flex-col gap-5">
+      <p className="text-body">What to study for this role, grouped by area. Each skill links to the matching topics in your domains.</p>
+      {groups.map(([area, skills]) => (
+        <section key={area} aria-label={area} className="card p-5 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-3 mb-1">
+            <h2 className="h-display text-lg flex-1">{area}</h2>
+            <button type="button" className="btn-outline btn-sm" onClick={() => go("questions", { area })}>Questions</button>
+          </div>
+          <ul className="flex flex-col divide-y divide-[#EEF0F3]">
+            {skills.map((s) => {
+              const imp = IMPORTANCE[s.importance];
+              const hits = match.data?.[s.name] ?? [];
+              return (
+                <li key={s.id} className="py-3 grid gap-x-6 gap-y-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{s.name}</h3>
+                      <span className={`chip ${imp.cls}`}>{imp.label}</span>
+                      {s.in_jd && <span className="chip bg-ok-soft text-ok-dark">In the JD</span>}
+                    </div>
+                    {s.how_tested && <p className="text-[13px] text-muted"><strong className="text-body">How it's tested:</strong> {s.how_tested}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    {match.isLoading && <span className="text-sm text-muted">Finding topics…</span>}
+                    {hits.map((t) => (
+                      <Link key={t.id} to={`/d/${t.domain.slug}/t/${t.id}`} className="group flex items-start gap-2 text-sm">
+                        <Icon.book size={14} className="mt-[3px] shrink-0 text-accent" />
+                        <span className="min-w-0"><span className="font-medium group-hover:text-accent">{t.title}</span>
+                          <span className="text-muted"> · {t.domain.name}</span></span>
+                      </Link>
+                    ))}
+                    {!match.isLoading && hits.length === 0 && (
+                      <Link to={`/search?q=${encodeURIComponent(s.name)}`} className="text-sm text-muted hover:text-accent">No topic yet · search the domains</Link>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- role and JD
+
+function Role({ p }: { p: InterviewDetail }) {
   const r = p.research;
   const jd = p.jd_analysis;
+  if (!r && !jd) return <p className="card p-6 text-muted">The role research appears here once it's done.</p>;
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap gap-6">
-        <section aria-labelledby="today-h" className="card flex-[2_1_420px] p-6 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <h2 id="today-h" className="h-display text-xl flex-1">What to do today</h2>
-            <button type="button" className="btn-outline btn-sm" disabled={coach.isPending} onClick={() => coach.mutate()}>
-              <Icon.refresh size={14} /> {coach.isPending ? "Writing…" : "Refresh"}
-            </button>
-          </div>
-          {coach.isPending ? <Thinking label="Your coach is planning today…" />
-            : p.coach_note ? <Markdown>{p.coach_note}</Markdown>
-            : <p className="text-muted">Your coach writes a plan here once the agents finish.</p>}
-          {coach.isError && <ErrorBox error={coach.error} />}
-          <div className="flex flex-wrap gap-2 pt-2">
-            {s.next_lesson && <Link to={`/lessons/${s.next_lesson.id}`} className="btn-primary">Next lesson: {s.next_lesson.title}</Link>}
-            <button type="button" className="btn-outline" onClick={() => go("mock")}><Icon.chat size={16} /> Start a mock interview</button>
-            {s.rated_skills < s.skills && <button type="button" className="btn-outline" onClick={() => go("skills")}>Rate your skills ({s.rated_skills}/{s.skills})</button>}
-          </div>
+    <div className="flex flex-wrap gap-6">
+      {jd && (
+        <section aria-labelledby="jd-h" className="card flex-[1_1_420px] p-6 flex flex-col gap-3">
+          <h2 id="jd-h" className="h-display text-xl">From the job description</h2>
+          <p className="text-body">{jd.role_summary}</p>
+          <ListBlock title="Responsibilities" items={jd.responsibilities} />
+          <ListBlock title="Required" items={jd.required_skills} />
+          <ListBlock title="Nice to have" items={jd.nice_to_have} />
+          <ListBlock title="Likely rounds" items={jd.likely_rounds} />
         </section>
-
-        <section aria-labelledby="ready-h" className="card flex-[1_1_280px] p-6 flex flex-col gap-3">
-          <h2 id="ready-h" className="h-display text-xl">Readiness</h2>
-          {([["Skills (your ratings, 50%)", s.parts.skills], ["Mock interview scores (30%)", s.parts.practice], ["Prep plan done (20%)", s.parts.plan]] as const).map(([l, v]) => (
-            <div key={l} className="flex flex-col gap-1">
-              <div className="flex justify-between text-sm"><span>{l}</span><strong>{v}%</strong></div>
-              <ProgressBar pct={v} label={`${l}: ${v}%`} />
+      )}
+      {r && (
+        <section aria-labelledby="res-h" className="card flex-[1_1_420px] p-6 flex flex-col gap-3">
+          <h2 id="res-h" className="h-display text-xl">What the role needs</h2>
+          <p className="text-body">{r.role_summary}</p>
+          <ListBlock title="How the interviews usually run" items={r.interview_format} />
+          <ListBlock title="Trends interviewers expect you to know" items={r.trends} />
+          {r.sources.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-1.5">Sources</h3>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {r.sources.map((src) => (
+                  <li key={src.url}><a href={src.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{src.title}</a>
+                    {!src.verified && <span className="text-muted"> · site blocks automatic link checks</span>}</li>
+                ))}
+              </ul>
             </div>
-          ))}
-          <ul className="text-sm text-body flex flex-col gap-1 pt-2 border-t border-[#EEF0F3]">
-            <li className="flex justify-between"><span>Questions</span><strong>{s.questions}</strong></li>
-            <li className="flex justify-between"><span>Confident / needs work</span><strong>{s.question_status.confident} / {s.question_status.needs_work}</strong></li>
-            <li className="flex justify-between"><span>Mock answers</span><strong>{s.attempts}</strong></li>
-          </ul>
-          {s.weak_skills.length > 0 && <p className="text-sm"><strong>Weakest must-haves:</strong> {s.weak_skills.join(", ")}</p>}
+          )}
         </section>
-      </div>
-
-      {(r || jd) && (
-        <div className="flex flex-wrap gap-6">
-          {jd && (
-            <section aria-labelledby="jd-h" className="card flex-[1_1_420px] p-6 flex flex-col gap-3">
-              <h2 id="jd-h" className="h-display text-xl">From the job description</h2>
-              <p className="text-body">{jd.role_summary}</p>
-              <ListBlock title="Responsibilities" items={jd.responsibilities} />
-              <ListBlock title="Required" items={jd.required_skills} />
-              <ListBlock title="Nice to have" items={jd.nice_to_have} />
-              <ListBlock title="Likely rounds" items={jd.likely_rounds} />
-            </section>
-          )}
-          {r && (
-            <section aria-labelledby="res-h" className="card flex-[1_1_420px] p-6 flex flex-col gap-3">
-              <h2 id="res-h" className="h-display text-xl">What the role needs (research)</h2>
-              <p className="text-body">{r.role_summary}</p>
-              <ListBlock title="Typical responsibilities" items={r.responsibilities} />
-              <ListBlock title="How the interviews usually run" items={r.interview_format} />
-              <ListBlock title="Trends interviewers expect you to know" items={r.trends} />
-              {r.common_skills.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-1.5">Skills seen across postings</h3>
-                  <ul className="flex flex-wrap gap-1.5">
-                    {r.common_skills.map((c) => <li key={c.name} className="chip bg-[#F1F3F6] text-body" title={c.note}>{c.name}</li>)}
-                  </ul>
-                </div>
-              )}
-              {r.sources.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-1.5">Sources</h3>
-                  <ul className="flex flex-col gap-1.5 text-sm">
-                    {r.sources.map((src) => (
-                      <li key={src.url}><a href={src.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{src.title}</a>
-                        {!src.verified && <span className="text-muted"> · site blocks automatic link checks</span>}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
       )}
     </div>
   );
@@ -230,121 +223,6 @@ function ListBlock({ title, items }: { title: string; items: string[] }) {
     <div>
       <h3 className="font-semibold mb-1">{title}</h3>
       <ul className="list-disc pl-5 text-body text-[15px] flex flex-col gap-0.5">{items.map((i) => <li key={i}>{i}</li>)}</ul>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- skills
-
-function Skills({ p, go }: { p: InterviewDetail; go: (t: Tab, extra?: Record<string, string>) => void }) {
-  const groups = useMemo(() => {
-    const m = new Map<string, Skill[]>();
-    p.skills.forEach((s) => m.set(s.area, [...(m.get(s.area) ?? []), s]));
-    return [...m.entries()];
-  }, [p.skills]);
-  if (!p.skills.length) return <p className="card p-6 text-muted">The Skill Mapper hasn't finished yet.</p>;
-  return (
-    <div className="flex flex-col gap-5">
-      <p className="text-body max-w-[760px]">
-        Every skill and technology this role needs, grouped by area. Rate yourself from 1 (new to me) to 5 (could teach it). Ratings
-        drive your readiness score, which questions the mock interview picks, and the plan when you rebuild it.
-      </p>
-      {groups.map(([area, skills]) => {
-        const avg = p.stats.area_scores[area];
-        return (
-          <section key={area} aria-label={area} className="card p-5 flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h2 className="h-display text-lg flex-1">{area}</h2>
-              {avg != null && <span className="text-sm text-muted">Mock average {avg}/5</span>}
-              <button type="button" className="btn-outline btn-sm" onClick={() => go("questions", { area })}>Questions</button>
-            </div>
-            <ul className="flex flex-col divide-y divide-[#EEF0F3]">
-              {skills.map((s) => <SkillRow key={s.id} s={s} prepId={p.id} />)}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function SkillRow({ s, prepId }: { s: Skill; prepId: number }) {
-  const qc = useQueryClient();
-  const [rating, setRating] = useState(s.self_rating ?? 0);
-  useEffect(() => setRating(s.self_rating ?? 0), [s.self_rating]);
-  const rate = useMutation({
-    mutationFn: (v: number) => api.rateSkill(s.id, v),
-    onMutate: (v) => setRating(v),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["interview", prepId] }),
-  });
-  const imp = IMPORTANCE[s.importance];
-  return (
-    <li className="py-3 flex flex-wrap gap-x-5 gap-y-2 items-start">
-      <div className="flex-[1_1_360px] min-w-0 flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold">{s.name}</h3>
-          <span className={`chip ${imp.cls}`}>{imp.label}</span>
-          {s.in_jd && <span className="chip bg-ok-soft text-ok-dark">In the JD</span>}
-          {s.questions > 0 && <span className="text-xs text-muted">{s.questions} questions</span>}
-        </div>
-        <p className="text-sm text-body">{s.evidence}</p>
-        {s.how_tested && <p className="text-[13px] text-muted"><strong>How it's tested:</strong> {s.how_tested}</p>}
-      </div>
-      <div role="radiogroup" aria-label={`Your level in ${s.name}`} className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((v) => (
-          <button key={v} type="button" role="radio" aria-checked={rating === v} title={["", "New to me", "Basic", "Working knowledge", "Strong", "Could teach it"][v]}
-            onClick={() => rate.mutate(rating === v ? 0 : v)}
-            className={`w-9 h-9 rounded-lg border text-sm font-semibold ${rating >= v && rating ? "bg-accent text-white border-accent" : "bg-white border-line2 text-body hover:bg-ground"}`}>{v}</button>
-        ))}
-      </div>
-    </li>
-  );
-}
-
-// ---------------------------------------------------------------- plan
-
-function Plan({ p }: { p: InterviewDetail }) {
-  const path = useQuery({ queryKey: ["path", p.path_id], queryFn: () => api.path(p.path_id!), enabled: !!p.path_id });
-  if (!p.path_id) return <p className="card p-6 text-muted">The Prep Planner hasn't built the plan yet{p.status === "failed" ? " (the build failed: use Edit configuration → Save and rebuild)" : ""}.</p>;
-  if (path.isLoading) return <Thinking label="Loading the plan…" />;
-  if (path.isError) return <ErrorBox error={path.error} />;
-  const d = path.data!;
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="card p-6 flex flex-wrap items-center gap-5">
-        <div className="flex-1 min-w-[260px] flex flex-col gap-2">
-          <h2 className="h-display text-xl">{d.title}</h2>
-          <p className="text-body">{d.summary}</p>
-          <p className="text-sm text-muted">{d.modules} modules · {d.lessons} lessons · {d.hours_per_week} h/week for {d.weeks} weeks · also on your Home page, tagged “Upskill Prep”</p>
-          <div className="max-w-[420px]"><ProgressBar pct={d.pct} label={`${d.pct}% complete`} /></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {d.current_lesson_id && <Link to={`/lessons/${d.current_lesson_id}`} className="btn-primary">{d.done ? "Continue" : "Start"} studying</Link>}
-          <Link to={`/paths/${d.id}`} className="btn-outline">Open full plan</Link>
-        </div>
-      </div>
-      <ol className="flex flex-col gap-3">
-        {d.module_list.map((m) => (
-          <li key={m.id} className="card p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Module {m.idx + 1} · {m.lessons.filter((l) => l.status === "done").length}/{m.lessons.length} done
-              {m.resources_status === "searching" && " · finding videos & papers…"}</p>
-            <h3 className="font-semibold text-lg">{m.title}</h3>
-            <ol className="mt-2 flex flex-col">
-              {m.lessons.map((l) => (
-                <li key={l.id}>
-                  <Link to={`/lessons/${l.id}`} className="flex items-center gap-3 py-2 px-1 rounded-lg hover:bg-ground">
-                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold ${l.status === "done" ? "bg-ok text-white" : "border-2 border-[#C9CED8] text-muted"}`}>
-                      {l.status === "done" ? <Icon.check size={11} /> : l.idx + 1}
-                    </span>
-                    <span className="flex-1">{l.title}</span>
-                    <span className="text-xs text-muted">{l.videos ? `${l.videos} videos · ` : ""}{l.papers ? `${l.papers} papers · ` : ""}{l.est_minutes} min</span>
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </li>
-        ))}
-      </ol>
     </div>
   );
 }

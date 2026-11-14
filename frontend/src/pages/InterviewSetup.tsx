@@ -1,9 +1,11 @@
-// Upskill Prep: list of companions + the Configure page (new or edit).
+// Interview prep: the list, and the setup page (new or edit).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, type Bar, type InterviewConfig, type QType, type Seniority } from "../api";
-import { ErrorBox, Icon, ProgressBar, Thinking } from "../components/ui";
+import { ErrorBox, Icon, Thinking } from "../components/ui";
+import { CareerMain } from "./Jobs";
+import { useProfile } from "./CVProfile";
 
 export const QTYPES: { value: QType; label: string; hint: string }[] = [
   { value: "concept", label: "Concept deep-dive", hint: "First principles, how things really work" },
@@ -33,46 +35,40 @@ export function daysLabel(d: number | null) {
 export function InterviewList() {
   const list = useQuery({ queryKey: ["interviews"], queryFn: api.interviews });
   return (
-    <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-6">
+    <CareerMain>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="h-display text-3xl">Upskill Prep</h1>
-          <p className="text-muted mt-1 max-w-[640px]">
-            Each Upskill Prep companion researches a role, maps every skill it needs, builds a study plan, writes a question bank with sourced answers and runs mock interviews.
-          </p>
+          <h1 className="h-display text-3xl">Interview prep</h1>
+          <p className="text-muted mt-1 max-w-[640px]">From a job description: the topics to study, questions with sourced answers, and mock interviews.</p>
         </div>
-        <Link to="/upskill/new" className="btn-primary"><Icon.plus /> New Upskill Prep companion</Link>
+        <Link to="/career/prep/new" className="btn-primary"><Icon.plus /> New interview prep</Link>
       </div>
       {list.isLoading && <Thinking label="Loading…" />}
       {list.isError && <ErrorBox error={list.error} onRetry={() => list.refetch()} />}
       {list.data?.length === 0 && (
-        <Link to="/upskill/new" className="card border-dashed p-8 flex flex-col gap-2 hover:border-accent">
-          <span className="h-display text-xl">Set up your first Upskill Prep companion</span>
-          <span className="text-muted">Paste a job description, or just enter the role title and let the agents research it.</span>
+        <Link to="/career/prep/new" className="card border-dashed p-8 flex flex-col gap-2 hover:border-accent">
+          <span className="h-display text-xl">Start your first interview prep</span>
+          <span className="text-muted">Paste a job description, or pick a job from Hot Jobs or Job search.</span>
         </Link>
       )}
       <ul className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
         {list.data?.map((p) => (
           <li key={p.id}>
-            <Link to={`/upskill/${p.id}`} className="card h-full p-5 flex flex-col gap-3 hover:border-accent">
+            <Link to={`/career/prep/${p.id}`} className="card h-full p-5 flex flex-col gap-3 hover:border-accent">
               <div className="flex flex-wrap gap-2">
                 <span className="chip bg-[#F1F3F6] text-body capitalize">{p.seniority}</span>
                 {p.status === "building" || p.last_run?.status === "running"
-                  ? <span className="chip bg-pp-bg text-pp-fg">Agents working…</span>
+                  ? <span className="chip bg-pp-bg text-pp-fg">Preparing…</span>
                   : p.status === "failed" ? <span className="chip bg-yt-bg text-yt-fg">Build failed</span> : null}
-                <span className="chip bg-accent-soft text-accent-dark">{daysLabel(p.days_left)}</span>
               </div>
               <h2 className="h-display text-xl">{p.role_title}</h2>
               {p.company && <p className="text-muted -mt-2">{p.company}</p>}
-              <div className="mt-auto flex flex-col gap-1.5">
-                <ProgressBar pct={p.readiness} label={`Readiness ${p.readiness}%`} />
-                <span className="text-[13px] text-muted">Readiness {p.readiness}% · {p.skills} skills · {p.questions} questions</span>
-              </div>
+              <span className="mt-auto text-[13px] text-muted">{p.skills} skills · {p.questions} questions</span>
             </Link>
           </li>
         ))}
       </ul>
-    </main>
+    </CareerMain>
   );
 }
 
@@ -93,7 +89,7 @@ export function InterviewConfigure() {
   const prefill = (useLocation().state as { prefill?: Partial<InterviewConfig> } | null)?.prefill;
   // Arriving from a job on the Career tab fills in the role, company and JD.
   const [f, setF] = useState<InterviewConfig>(() => (editId || !prefill ? EMPTY : { ...EMPTY, ...prefill }));
-  const [replacePlan, setReplacePlan] = useState(true);
+  const hasCV = !!useProfile().data?.profile;
   const [replaceQuestions, setReplaceQuestions] = useState(false);
 
   useEffect(() => {
@@ -112,28 +108,28 @@ export function InterviewConfigure() {
 
   const create = useMutation({
     mutationFn: () => api.createInterview(f),
-    onSuccess: (d) => { qc.invalidateQueries(); navigate(`/upskill/${d.id}`); },
+    onSuccess: (d) => { qc.invalidateQueries(); navigate(`/career/prep/${d.id}`); },
   });
   const save = useMutation({
     mutationFn: async (rebuild: boolean) => {
       await api.updateInterview(editId!, { ...f, ...(f.interview_date ? {} : { clear_date: true }) });
-      if (rebuild) await api.rebuildInterview(editId!, { replace_plan: replacePlan, replace_questions: replaceQuestions });
+      if (rebuild) await api.rebuildInterview(editId!, { replace_plan: false, replace_questions: replaceQuestions });
     },
-    onSuccess: () => { qc.invalidateQueries(); navigate(`/upskill/${editId}`); },
+    onSuccess: () => { qc.invalidateQueries(); navigate(`/career/prep/${editId}`); },
   });
   const busy = create.isPending || save.isPending;
   const err = create.error ?? save.error;
 
-  if (editId && existing.isLoading) return <main className="p-8"><Thinking label="Loading…" /></main>;
+  if (editId && existing.isLoading) return <CareerMain><Thinking label="Loading…" /></CareerMain>;
 
   return (
-    <main className="max-w-[900px] mx-auto w-full px-4 sm:px-8 py-8">
+    <CareerMain>
       <form className="card p-6 sm:p-8 flex flex-col gap-6"
         onSubmit={(e) => { e.preventDefault(); if (editId) save.mutate(false); else create.mutate(); }}>
         <div className="flex flex-col gap-2">
-          <Link to={editId ? `/upskill/${editId}` : "/upskill"} className="text-sm text-accent font-semibold">← Back</Link>
-          <h1 className="h-display text-3xl">{editId ? "Edit Upskill Prep companion" : "Configure your Upskill Prep companion"}</h1>
-          <p className="text-muted">The agents use this to research the role, map the skills, plan your study time and write questions at the bar you choose.</p>
+          <Link to={editId ? `/career/prep/${editId}` : "/career/prep"} className="text-sm text-accent font-semibold">← Back</Link>
+          <h1 className="h-display text-3xl">{editId ? "Edit interview prep" : "New interview prep"}</h1>
+          <p className="text-muted">Used to research the role, link its skills to your domain topics and write questions at the bar you choose.</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -160,14 +156,6 @@ export function InterviewConfigure() {
             <select id="sen" className="input capitalize" value={f.seniority} onChange={(e) => set("seniority", e.target.value as Seniority)}>
               {SENIORITY.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
             </select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="date" className="label">Interview date</label>
-            <input id="date" type="date" className="input" value={f.interview_date ?? ""} onChange={(e) => set("interview_date", e.target.value || null)} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="hrs" className="label">Hours per week</label>
-            <input id="hrs" type="number" min={1} max={60} className="input" value={f.hours_per_week} onChange={(e) => set("hours_per_week", Number(e.target.value))} />
           </div>
         </div>
 
@@ -204,7 +192,8 @@ export function InterviewConfigure() {
         <div className="flex flex-col gap-2">
           <label htmlFor="bg" className="label">Your background <span className="font-normal text-muted">(optional)</span></label>
           <textarea id="bg" rows={4} className="input resize-y" value={f.background} onChange={(e) => set("background", e.target.value)}
-            placeholder="Paste a CV summary or describe your experience. The plan spends less time on what you already know." />
+            placeholder={hasCV ? "Leave empty to use your saved CV" : "Paste a CV summary or describe your experience. Questions focus on what matters for you."} />
+          {hasCV && !f.background.trim() && <p className="text-[13px] text-muted">Your saved CV is used (contact details removed).</p>}
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="focus" className="label">Focus areas or notes <span className="font-normal text-muted">(optional)</span></label>
@@ -220,11 +209,9 @@ export function InterviewConfigure() {
           <fieldset className="rounded-xl bg-ground p-4 flex flex-col gap-2">
             <legend className="sr-only">Rebuild options</legend>
             <p className="font-semibold">When rebuilding with these settings</p>
-            <label className="flex items-center gap-2.5"><input type="checkbox" className="w-5 h-5 accent-accent" checked={replacePlan} onChange={(e) => setReplacePlan(e.target.checked)} />
-              Replace the prep plan (its lesson progress is lost)</label>
             <label className="flex items-center gap-2.5"><input type="checkbox" className="w-5 h-5 accent-accent" checked={replaceQuestions} onChange={(e) => setReplaceQuestions(e.target.checked)} />
               Replace the questions (your own and practised questions are kept)</label>
-            <p className="text-[13px] text-muted">The research and skill map are always refreshed; your self-ratings are kept for skills with the same name.</p>
+            <p className="text-[13px] text-muted">The research and suggested topics are always refreshed.</p>
           </fieldset>
         )}
 
@@ -239,12 +226,12 @@ export function InterviewConfigure() {
             </>
           ) : (
             <button type="submit" className="btn-primary min-h-[48px] px-6" disabled={busy || !f.question_types.length}>
-              {busy ? "Starting the agents…" : "Build my Upskill Prep plan"}
+              {busy ? "Starting…" : "Prepare my interview kit"}
             </button>
           )}
-          <span className="text-[13px] text-muted self-center">Takes about 10 minutes and roughly 40–50 Claude calls.</span>
+          <span className="text-[13px] text-muted self-center">Takes about 5–10 minutes.</span>
         </div>
       </form>
-    </main>
+    </CareerMain>
   );
 }

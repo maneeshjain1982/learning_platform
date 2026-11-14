@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, type Cert, type CertFind, type JobPosting, type JobsParams } from "../api";
+import { useState } from "react";
+import { Navigate } from "react-router-dom";
+import { api, type Cert, type CertFind } from "../api";
 import { ItemActions, RemovedNote, RemoveFound } from "../components/EditItem";
 import { ErrorBox, Icon, Thinking } from "../components/ui";
+import { CareerMain } from "./Jobs";
 
 function ago(isoTime: string) {
   const mins = Math.round((Date.now() - new Date(isoTime).getTime()) / 60000);
@@ -19,31 +20,17 @@ function fmtDay(d: string) {
 const Chip = ({ children, cls = "bg-[#F1F3F6] text-body" }: { children: React.ReactNode; cls?: string }) =>
   <span className={`chip ${cls}`}>{children}</span>;
 
+/** Certifications worth earning (admin). Hot Jobs has its own page. */
 export default function Career() {
-  const [tab, setTab] = useState<"certs" | "jobs">(() => (location.hash === "#jobs" ? "jobs" : "certs"));
-  useEffect(() => { history.replaceState(null, "", tab === "jobs" ? "#jobs" : "#certifications"); }, [tab]);
+  if (location.hash === "#jobs") return <Navigate to="/career/jobs" replace />;  // old link to the jobs tab
   return (
-    <main className="max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="h-display text-3xl">Career</h1>
-        <p className="text-body max-w-[760px]">
-          Certifications worth earning and the jobs hiring now for Agentic AI and Generative AI. Both can be refreshed:
-          the LLM searches the web and every link is checked before it's shown.
-        </p>
+    <CareerMain>
+      <header className="flex flex-col gap-1">
+        <h1 className="h-display text-3xl">Certifications</h1>
+        <p className="text-muted">Agentic AI and Generative AI certifications worth earning. Refresh to check for new ones.</p>
       </header>
-      <div role="tablist" aria-label="Career sections" className="flex gap-1 border-b border-line">
-        {([["certs", "Certifications"], ["jobs", "Hot jobs"]] as const).map(([id, label]) => (
-          <button key={id} role="tab" type="button" aria-selected={tab === id} aria-controls={`panel-${id}`} id={`tab-${id}`}
-            onClick={() => setTab(id)}
-            className={`px-4 min-h-[44px] -mb-px border-b-2 font-semibold ${tab === id ? "border-accent text-accent-dark" : "border-transparent text-body hover:text-ink"}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "certs" ? <Certifications /> : <HotJobs />}
-      </div>
-    </main>
+      <Certifications />
+    </CareerMain>
   );
 }
 
@@ -169,156 +156,5 @@ function CertFindRow({ c }: { c: CertFind }) {
       {c.what_changed && <p className="text-sm text-body">{c.what_changed}</p>}
       <p className="text-sm text-muted">{c.focus} {c.fit}</p>
     </li>
-  );
-}
-
-// ---------------------------------------------------------------- jobs
-
-function HotJobs() {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["jobs"], queryFn: api.jobs,
-    refetchInterval: (query) => (query.state.data?.status === "running" ? 4000 : false),
-  });
-  const [form, setForm] = useState<JobsParams | null>(null);
-  const refresh = useMutation({ mutationFn: (b: JobsParams) => api.refreshJobs(b), onSuccess: (d) => qc.setQueryData(["jobs"], d) });
-  const [skill, setSkill] = useState<string | null>(null);
-
-  if (q.isLoading) return <Thinking label="Loading…" />;
-  if (q.isError) return <ErrorBox error={q.error} onRetry={() => q.refetch()} />;
-  const d = q.data!;
-  const f = form ?? d.params;
-  const running = d.status === "running" || refresh.isPending;
-  const set = <K extends keyof JobsParams>(k: K, v: JobsParams[K]) => setForm({ ...f, [k]: v });
-  const onSubmit = (e: FormEvent) => { e.preventDefault(); refresh.mutate(f); };
-  const tagsOf = (j: JobPosting) => j.skill_tags ?? j.must_have;
-  const shown = skill ? d.jobs.filter((j) => tagsOf(j).includes(skill)) : d.jobs;
-
-  return (
-    <div className="flex flex-col gap-6">
-      <form onSubmit={onSubmit} className="card p-5 grid gap-3 md:grid-cols-[2fr_1fr_auto_auto] items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="roles" className="label text-sm">Roles</label>
-          <input id="roles" className="input" value={f.roles} disabled={running} onChange={(e) => set("roles", e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="loc" className="label text-sm">Location</label>
-          <input id="loc" className="input" value={f.location} disabled={running} placeholder="Anywhere, incl. remote"
-            onChange={(e) => set("location", e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="cnt" className="label text-sm">How many</label>
-          <select id="cnt" className="input w-auto" value={f.count} disabled={running} onChange={(e) => set("count", Number(e.target.value))}>
-            {[5, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <button type="submit" className="btn-primary" disabled={running || f.roles.trim().length < 3}>
-          <Icon.search /> {running ? "Searching…" : d.jobs.length ? "Refresh jobs" : "Find jobs"}
-        </button>
-        <p className="text-xs text-muted md:col-span-4">
-          The LLM searches company career pages and job boards for postings from the last 30 days and breaks down each
-          job description.{d.fetched_at && <> Last searched {ago(d.fetched_at)}.</>} Postings close quickly, so check the link before applying.
-        </p>
-      </form>
-
-      {refresh.isError && <ErrorBox error={refresh.error} />}
-      {running && d.started_at && <Thinking label="Searching for open roles and reading their job descriptions. This usually takes 2–5 minutes…" since={new Date(d.started_at).getTime()} />}
-      {d.status === "failed" && d.error && <ErrorBox error={`The last search didn't finish: ${d.error}`} onRetry={() => refresh.mutate(f)} />}
-      {d.status === "idle" && !running && <p className="text-body">No search yet. Set the roles and location, then press <span className="font-semibold">Find jobs</span>.</p>}
-
-      {d.jobs.length > 0 && (
-        <>
-          <section aria-labelledby="mk-h" className="card p-5 flex flex-col gap-3">
-            <h2 id="mk-h" className="font-semibold text-lg">The market right now</h2>
-            {d.market_summary && <p className="text-body">{d.market_summary}</p>}
-            {d.trends.length > 0 && <ul className="list-disc pl-5 text-sm text-body flex flex-col gap-0.5">{d.trends.map((t) => <li key={t}>{t}</li>)}</ul>}
-            {d.top_skills.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-semibold">Most-asked skills in these JDs <span className="font-normal text-muted">(select one to filter)</span></p>
-                <div className="flex flex-wrap gap-1.5">
-                  {d.top_skills.map((s) => (
-                    <button key={s.skill} type="button" aria-pressed={skill === s.skill} onClick={() => setSkill(skill === s.skill ? null : s.skill)}
-                      className={`min-h-[36px] px-3 rounded-full border text-sm ${skill === s.skill ? "bg-accent text-white border-accent" : "bg-white border-line2 text-body hover:bg-ground"}`}>
-                      {s.skill} <span className={skill === s.skill ? "text-white/80" : "text-muted"}>×{s.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-          <p className="text-sm text-muted">
-            {shown.length} of {d.jobs.length} jobs{skill && <> asking for <span className="font-semibold text-body">{skill}</span></>}
-            {d.dropped > 0 && <> · {d.dropped} left out because the posting link didn't open</>}
-          </p>
-          <ul className="flex flex-col gap-4">{shown.map((j) => <li key={j.url}><JobCard j={j} /></li>)}</ul>
-        </>
-      )}
-    </div>
-  );
-}
-
-function jdText(j: JobPosting) {
-  return [
-    `${j.title} at ${j.company} (${j.location})`, "", j.summary, "",
-    "Responsibilities:", ...j.responsibilities.map((r) => `- ${r}`), "",
-    "Must have:", ...j.must_have.map((r) => `- ${r}`),
-    ...(j.nice_to_have.length ? ["", "Nice to have:", ...j.nice_to_have.map((r) => `- ${r}`)] : []),
-    "", `Posting: ${j.url}`,
-  ].join("\n");
-}
-
-function JobCard({ j }: { j: JobPosting }) {
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const facts = [j.location, j.work_mode !== "unknown" && j.work_mode, j.seniority, j.salary].filter(Boolean) as string[];
-  const toPrep = () => navigate("/upskill/new", {
-    state: { prefill: { role_title: j.title, company: j.company, jd_text: jdText(j) } },
-  });
-  return (
-    <article className="card p-5 flex flex-col gap-2.5">
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="font-semibold text-body">{j.company}</span>
-        {j.posted && <span className="text-muted">Posted {fmtDay(j.posted)}</span>}
-        {j.why_hot && <Chip cls="bg-ok-soft text-ok-dark">{j.why_hot}</Chip>}
-        {!j.verified && <Chip cls="bg-[#F1F3F6] text-muted">Link not verified</Chip>}
-        <span className="ml-auto"><RemoveFound job="jobs" url={j.url} title={j.title} queryKey={["jobs"]} /></span>
-      </div>
-      <h3 className="font-semibold text-lg leading-snug">
-        <a href={j.url} target="_blank" rel="noreferrer" className="hover:text-accent inline-flex items-baseline gap-1.5">
-          {j.title} <Icon.external size={14} className="text-muted shrink-0" />
-        </a>
-      </h3>
-      <div className="flex flex-wrap gap-1.5">{facts.map((f) => <Chip key={f}>{f}</Chip>)}</div>
-      <p className="text-body">{j.summary}</p>
-      {(j.skill_tags ?? []).length > 0 && (
-        <div className="flex flex-wrap gap-1.5">{j.skill_tags!.map((s) => <Chip key={s} cls="bg-accent-soft text-accent-dark">{s}</Chip>)}</div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-outline btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? "Hide JD breakdown" : "Show JD breakdown"}
-        </button>
-        <button type="button" className="btn-outline btn-sm" onClick={toPrep}>Prepare in Upskill Prep</button>
-      </div>
-      {open && (
-        <div className="grid gap-4 md:grid-cols-2 text-sm pt-1">
-          <div>
-            <p className="font-semibold mb-1">Responsibilities</p>
-            <ul className="list-disc pl-5 text-body flex flex-col gap-0.5">{j.responsibilities.map((r) => <li key={r}>{r}</li>)}</ul>
-          </div>
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="font-semibold mb-1">Must have</p>
-              <ul className="list-disc pl-5 text-body flex flex-col gap-0.5">{j.must_have.map((r) => <li key={r}>{r}</li>)}</ul>
-            </div>
-            {j.nice_to_have.length > 0 && (
-              <div>
-                <p className="font-semibold mb-1">Nice to have</p>
-                <ul className="list-disc pl-5 text-body flex flex-col gap-0.5">{j.nice_to_have.map((r) => <li key={r}>{r}</li>)}</ul>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </article>
   );
 }

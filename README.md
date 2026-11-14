@@ -1,54 +1,101 @@
 # Study Companion
 
-A personal learning portal. Describe what you want to learn; a team of LLM agents builds a step-by-step
-learning path, writes lesson notes, finds YouTube videos and research papers, and keeps a personalized home page.
-An **Ask LLM** tutor is available on every lesson.
+A personal knowledge base for AI engineering. Knowledge is organised by **domain** (Gen AI, LLM, Agentic AI, Voice AI,
+and any domain the admin adds). Each topic gives an **executive summary** and the **best links to go deeper**:
+YouTube, Coursera, university courses, docs, arXiv papers, Medium and engineering blogs. Each link is labelled with
+its type and whether it's free, needs a login or is paid. For admins, a **Career** section holds jobs, interview prep
+and FAANG questions.
 
-Runs locally. LLM calls go through **LLM_Bridge** (`D:\Y26\work_dir\LLM_Bridge`) using your
-signed-in Claude Code CLI, so **no API keys** are needed. See [PLAN.md](PLAN.md) for the design.
+Runs locally. LLM calls go through **LLM_Bridge** (`D:\Y26\work_dir\LLM_Bridge`) using your signed-in Claude Code
+CLI, so **no API keys** are needed.
 
 ## Sign in
 
-There are two accounts. Each has its own home page, paths, progress, links, notes and settings.
-
 | Account | Username / password | Sees |
 |---|---|---|
-| Admin | `admin` / `admin` | Everything, including **Career** (certifications, hot jobs) and **Upskill Prep** |
-| User | `user` / `user` | Learning, Tech News and Library. Career, jobs and Upskill Prep are hidden and blocked by the server |
+| Admin | `admin` / `admin` | Everything. Adds, edits and deletes domains, topics and links. Has **Career** |
+| User | `user` / `user` | Home, Domains, Tech News and their own bookmarks. Career is hidden and blocked by the server |
 
-Change a password in **Settings**. The data from before sign-in was added belongs to the admin; the user account starts
-with its own copy of the starter paths. Review questions and paper summaries are shared; marks are per account.
+Change a password in **Settings**. Domains are shared by both accounts; bookmarks are per account.
 
-## Menu
+## Layout
 
-The top menu has **Home**, **Learning** (My paths, Claude learning, Voice ASR/NLU, Upskill Prep, New goal),
-**Tech News**, **Career** (admin) and **Library** (Discover, My links). The round button on the right shows who is
-signed in, with Settings and Sign out. On a phone, the groups open inside the ☰ menu.
+Every page has two parts: a **left panel** to browse (sections and topics, news topics, Career pages) and the
+**details on the right**. On a phone the left panel opens from the button at the top of the page.
 
-## Home
+The top menu has **Home**, **Domains**, **Tech News** and **Career** (admin), and a search box that searches every topic.
+The round button on the right holds **Bookmarks**, **Settings** and **Sign out**.
 
-A short page of cards: Continue learning, This week, My paths, Tech News, Videos & papers for the current module,
-My links and (admin) Hot jobs. **Customize** turns cards on or off and changes their order, per account.
+## Domains
+
+- **Pick a domain** from the top menu, Home, or the selector at the top of the left panel.
+- **Left panel:** the domain's sections, each opening to its topics, plus a filter box.
+- **A topic** shows:
+  - an **executive summary**: what it is, the key points and why it matters
+  - **Blogs & explainers**: plain-language posts (Medium, Hugging Face, Kaggle, well-known AI blogs), each with its
+    level (Beginner, Intermediate, Advanced), reading time and whether it's free. Easiest first.
+  - **Courses, videos & docs**: the other links, filterable by type (video, course, paper, docs…) and **Free only**
+  - **Summarize this source** on any link, which writes a short AI summary from the page itself (papers get problem,
+    method, results and limitations). Summaries are saved and shared.
+  - **Bookmark**, and **Previous / Next** topic
+- **First-time summaries:** a topic built from an outline gets its summary the first time anyone opens it (about a
+  minute). If it has fewer than 3 links, more are found with web search at the same time. Every link is checked;
+  dead ones are dropped.
+- **Blog Scout:** the first time a topic with fewer than 2 blog posts is opened, Blog Scout finds 4-6 posts that
+  explain it well (1-2 minutes). It prefers recent, free posts and skips SEO filler and vendor marketing.
+
+**Admin tools:**
+- **Add domain**, from the Domains menu, Home or the left panel. Give a name and scope; **Build the outline with AI**
+  plans the sections and topics and writes each one with its links (several minutes).
+- **Sections:** add, rename and delete them in the left panel.
+- **Topics:** **Add topic**, with AI or written yourself; **Edit**; **Rewrite** the summary; **Find more links**;
+  **Delete**.
+- **Links:** **Add link** (type and access are worked out from the address), **Edit**, **Delete**.
+- **Write N summaries** writes every draft topic in a domain now, instead of on first open.
+- **Blogs:** **Find blogs** / **Find more blogs** on a topic; **Find blogs for all topics** on a domain. In the domain's
+  **Edit**, add **trusted blogs** (one per line, `Name | link`) that Blog Scout checks first.
+
+**Starting content:** on first start after the upgrade, the four domains were built from the existing content. Nothing
+was re-researched. They run once; a domain the admin deletes doesn't come back.
+- **Gen AI:** your own learning paths (e.g. the RAG app path)
+- **LLM:** LLM Fundamentals and the other Claude Academy courses
+- **Agentic AI:** Agentic AI, Agentic Harness and the Claude Academy agent builder track
+- **Voice AI:** the Hindi and English voice content: technical modules, models, datasets, papers, courses and the launch
+  playbook
 
 ## Tech News
 
-**Tech News** shows live Hacker News headlines (public API, no key) next to your own digest. Pick topics (AI & LLMs,
-Agents & tools, Speech & NLP, Developer tools, Cloud, Mobile, Security, Chips) and a time range, then **Get my digest**:
-the LLM searches the web, writes one or two lines per story and every link is checked. **Hide** removes a story.
+- **Left panel:** your digest, its topics and the live Hacker News front page.
+- **Topics and refresh:** pick topics and a time range. The LLM searches the web, writes one or two lines per story,
+  and checks every link.
 
-## Paper summaries
+## Career (admin)
 
-Every paper (lesson pages, Discover, Voice papers) has **Summarize**. The LLM reads the paper on arXiv (full text when
-it can open it, otherwise the abstract, and says which) and writes a TL;DR, problem, method, key results with numbers,
-limitations and why it matters. Summaries are saved and shared; the admin can **Edit**, **Regenerate** or **Delete** them.
+- **Hot Jobs:** roles, **country** (or Anywhere / Remote only), optional city and how many, then **Refresh**. You get
+  open postings from the last 30 days, each with its JD broken down, plus the most-asked skills, which work as a filter.
+- **Job search:**
+  - **Your CV:** upload a PDF, Word file or text, or paste it. It's read on this computer; name, email, phone, address
+    and profile links are removed before the AI sees it, and the file isn't kept. The AI writes a profile (title,
+    years, level, domains, skills, roles to search for) that you can edit. **What the AI sees** shows the exact text.
+  - **Matching my CV:** jobs that fit your profile, each with a **match score**, **why it fits** and **gaps**, best
+    match first.
+  - **Custom search:** a role, company or skills, or a domain.
+  - **Filters:** years of experience, level, country and city; under **More filters**, work mode, company type,
+    posted within, minimum salary, visa sponsorship and anything else.
+- **Interview prep:** paste a JD, or press **Interview prep for this job** on any job. If you've added your CV and
+  leave "Your background" empty, your CV is used, so the skills it doesn't show stand out. You get:
+  - **Suggested topics:** the skills the role needs by area, each linked to the matching topics in your domains
+  - **Questions:** questions with model answers, key points, follow-ups and checked sources. You can generate more or
+    add your own.
+  - **Mock interview:** answer by typing and get a score, what was missing, a stronger answer and a follow-up question
+  - **Role & JD:** the JD breakdown and web research on the role
+- **FAANG questions:** pick Google, Meta, Amazon, Apple, Netflix or Microsoft, a role and a domain. The LLM finds
+  interview questions that were **publicly reported** (prep guides, Glassdoor, Blind, candidate write-ups), each with
+  an answer outline and its source. Results are saved until you press **Refresh**.
+- **Certifications:** AI certifications worth earning, with price, format and what each tests. **Refresh** looks for
+  new ones.
 
-## Editing and deleting content
-
-- Your own content: paths, modules, lessons, links, lesson notes (**Edit** / **Delete** under the notes), generated
-  utterances, and items found by research runs (news, certification changes, jobs, What's new) can be edited or removed.
-- Built-in lists (Voice models, datasets, papers and courses; certifications; Claude courses): the admin can edit or
-  delete an item for every account; the user account can hide items for itself. **Restore original** undoes it.
-- Review questions: any account marks them; the admin can edit or delete them.
+All LLM research runs in the background; you can leave the page and come back.
 
 ## Run it
 
@@ -71,114 +118,36 @@ cd frontend; npm install; npm run build; cd ..
 .\run.ps1
 ```
 
-On first start the app creates three starter paths — **Agentic AI**, **LLM Fundamentals**, **Agentic Harness** —
-and fetches their papers from arXiv (each paper is kept only if arXiv's title matches).
-
 **Frontend development** (hot reload): run the backend (`.\run.ps1`), then `cd frontend; npm run dev` and open
 http://localhost:5173 (API calls are proxied to port 8000).
 
 **Tests:** `.\.venv\Scripts\python -m pytest backend\tests` (offline: fake LLM, mocked network).
 
-## How it works
+## How it is built
 
-| Agent | What it does | Uses |
-|---|---|---|
-| Topic Identifier | Turns your goal into core topics, prerequisites and search keywords | Claude (sonnet) |
-| Curriculum Planner | Orders modules and lessons to fit your hours/weeks | Claude (sonnet) |
-| Video Search | Finds YouTube videos per lesson; every URL is checked with YouTube oEmbed, unverifiable ones are dropped | Claude web search + oEmbed |
-| Paper Search | Foundational papers named by Claude (verified on arXiv by id + title) plus an arXiv phrase search | Claude (haiku), arXiv, Semantic Scholar |
-| Curator | Matches papers to lessons and explains each pick | Claude (haiku) |
-| Home Composer | Today's focus note; refreshes the home page | Claude (haiku) |
-| Lesson Writer | Writes lesson notes the first time you open a lesson | Claude (sonnet) |
-| Tutor (Ask LLM) | Answers questions with the lesson, your level and the path as context (each can be turned off) | Claude (sonnet) |
-
-Coursera and Udemy are **search links** (no public API). Everything is stored in `data/study.db` (SQLite).
-
-## Upskill Prep (admin)
-
-**Upskill Prep** (under **Learning** in the top menu) holds your prep companions for a target role. Click **New Upskill Prep companion** and fill in:
-
-- the role and company
-- the job description (optional; without one, the agents research the role)
-- your level and interview date
-- the question bar and question types
-- how many questions to write per skill area
-
-The agents then:
-
-1. **JD Analyst:** reads the job description.
-2. **Role Researcher:** web-searches postings and interview guides, and checks every source link.
-3. **Skill Mapper:** lists every skill and technology, marked must-have, important or nice-to-have.
-4. **Prep Planner:** builds a study plan as a learning path, tagged "Upskill Prep" on Home. The video and paper agents fill it in.
-5. **Question Writer:** writes questions with model answers, key points, follow-ups, red flags and sources. Papers are checked on arXiv by ID and title; dead links are removed.
-6. **Coach:** writes what to do today.
-
-A build takes about 10–15 minutes and 40–50 Claude calls.
-
-On the companion page:
-
-- **Skills & tech:** rate yourself 1–5 on each skill.
-- **Questions:** filter, mark questions *Needs work* or *Confident*, edit, add your own, or **Generate more**.
-- **Mock interview:** answer by typing and get a 1–5 score, what was missing, a stronger answer and a follow-up question. Questions are weighted toward your weak areas.
-
-**Readiness** = 50% skill ratings + 30% mock scores + 20% prep plan done. Use **Edit configuration → Save and rebuild** after pasting a new job description.
-
-## Claude learning
-
-The **Claude learning** tab lists Anthropic's free courses on [Claude Academy](https://academy.claude.com).
-
-- **Agent builder track:** 11 courses in the order to take them, with lesson lists, a status for each course, and **Add track to My paths** to study them lesson by lesson.
-- **Review Q&A:** on each track course, **Review Q&A** opens questions for every lesson. The LLM writes them, checks facts against Anthropic's docs and links the sources. Reveal an answer, then mark it *Know it* or *Review again*. **Write new questions** replaces the set (your marks stay on questions that come back unchanged).
-- **New updates:** **Refresh** has the LLM search the web for recent Claude, Claude Code, MCP and agent news. Dead links are dropped.
-
-## Voice ASR/NLU (Hindi and English)
-
-The **Voice ASR/NLU** tab covers adding a language to a voice assistant such as Bixby. Switch between **Hindi** (adding hi-IN) and **English** (adding an English locale such as en-IN, and accent robustness) at the top. Everything was researched and link-checked; arXiv IDs were checked against arXiv, and licences come from the model and dataset cards.
-
-Each language has the same sections:
-
-- **Overview & skills:** the competencies needed, with the level each needs. Rate yourself to see your gaps.
-- **Courses & modules:** courses in order, and 12 technical modules (speech basics, ASR models, text normalization, LM and biasing, on-device, intent/slot NLU, code-mixing or accents, entities, LLM NLU, data, testing, launch). Each module has **Review Q&A**, and **Add modules to My paths** turns them into a study path.
-- **Models & datasets:** the best open and commercial ASR models (with WER from the named source), NLU encoders, tools, and datasets with licences.
-- **Research papers:** reading list grouped by topic.
-- **Launch playbook:** 10 phases with steps to tick off, outputs, owners and pitfalls.
-- **Testing:** ASR, NLU and end-to-end metrics, the slices to report, and test-set design.
-- **Data:** the variability matrix, how to get data, and how to generate it.
-- **Utterance generator:** enter an intent and slots; the LLM writes utterances in the language's styles (Hindi: Devanagari, romanized, Hinglish; English: standard, Indian English, casual, ASR-like) with slot labels. Export as CSV, JSONL or Bixby-style Aligned NL.
-- **What's new:** **Refresh** finds new models, datasets, papers and news.
-
-To add another language, add a content module like `backend/english_voice.py` and register it in `backend/voice_langs.py`.
-
-## Career (admin)
-
-- **Certifications:** a researched list of Agentic AI and Generative AI certifications (Anthropic, Google Cloud, Microsoft, NVIDIA, AWS, Databricks, plus courses with certificates), grouped by level, with price, format and what each one tests. **Refresh** looks for new certifications and changes to these.
-- **Hot jobs:** set the roles and location, then **Find jobs**. The LLM finds open postings from the last 30 days, breaks down each job description, and lists the skills asked for most. **Prepare in Upskill Prep** opens Upskill Prep with the role, company and JD filled in.
-
-All LLM research runs in the background; you can leave the page and come back.
-
-## Customize your home page
-
-- **My courses & links**: on Home, a path page, or **My links**, click **Add course or link** and paste any address (a Udemy or Coursera course, a YouTube playlist, docs…). Leave the title blank to use the page's own title. A link can be general or tied to one path, and can be hidden from Home.
-- **Edit any course**: on **My paths**, edit, reorder, hide from Home or delete any path. On a path page, **Edit course** lets you rename, reorder, add and delete modules and lessons.
-- **Create my own course**: on **My paths**, create an empty course and fill in modules and lessons yourself. The agents can still find videos and papers for it.
-- Deleted starter paths stay deleted across restarts; **Settings → Restore starter paths** brings them back.
+- **Data model:** domain → section → topic (executive summary) → source (link with type, access and an optional
+  AI summary), in `data/study.db` (SQLite). Code: `backend/api/domains.py`, `backend/agents/domains.py`.
+- **Link labels:** the type and access come from the address (`classify()`): YouTube is a free video, Coursera needs a
+  login, Udemy is paid, Medium may be paywalled, university sites are free courses, arXiv is a free paper, and so on.
+- **Old pages and data:** the old learning paths, progress, review Q&A and study plans are no longer shown, but their
+  data is still in the database. Old links (`/paths`, `/claude`, `/voice`, `/upskill`, `/jobs`) redirect to the new
+  pages.
 
 ## Settings (environment variables)
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `LLM_PROVIDER` | `claude` | `claude`, `chatgpt` or `gemini` (that CLI must be installed) |
-| `LLM_MODEL` | `sonnet` | Planning, lesson notes, tutor, video search |
-| `LLM_FAST_MODEL` | `haiku` | Curator, paper suggestions, focus note |
+| `LLM_MODEL` | `sonnet` | Summaries, sources, research |
+| `LLM_FAST_MODEL` | `haiku` | Short tasks |
 | `LLM_TIMEOUT` | `420` | Seconds per LLM call |
 | `LLM_MAX_PARALLEL` | `3` | CLI processes running at once |
 | `STUDY_DATA_DIR` | `./data` | Where `study.db` lives |
 
 ## Good to know
 
-- Every agent step and every Ask LLM answer uses your Claude plan. Building a new path takes a few minutes
-  (about 3 + 4×modules Claude calls); finding resources for one module takes 1–2 minutes.
+- Every summary, link search and research run uses your Claude plan.
+- A topic summary takes about a minute; with a link search, 1–3 minutes. A new AI-built domain takes several minutes.
 - The bridge doesn't stream, so Ask LLM answers appear in one piece after a few seconds.
-- Semantic Scholar often rate-limits requests without an API key; paper search then uses arXiv only.
 - Windows Smart App Control blocks Rollup's native binary, so the frontend uses `@rollup/wasm-node`
   (see `overrides` in `frontend/package.json`).

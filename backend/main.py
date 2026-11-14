@@ -16,10 +16,12 @@ from sqlalchemy import select
 
 from . import config
 from .api import bgjobs, router
+from .api import domains as domains_api
 from .api.common import spawn
 from .auth import AuthMiddleware
 from .db import init_db, session_scope
 from .models import AgentRun, InterviewPrep, LearningPath, Lesson, Module, utcnow
+from .domains_seed import seed_domains
 from .seed import attach_seed_papers, seed_papers_missing, seed_structure
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -43,6 +45,7 @@ def _recover_interrupted_work() -> None:
         for path in db.scalars(select(LearningPath).where(LearningPath.status == "building")):
             path.status = "ready" if path.modules else "failed"
         bgjobs.recover_interrupted(db)
+        domains_api.recover(db)
 
 
 @asynccontextmanager
@@ -52,6 +55,8 @@ async def lifespan(app: FastAPI):
     with session_scope() as db:
         created = seed_structure(db)
         missing = seed_papers_missing(db)
+        if seed_domains(db):
+            log.info("Created the starting domains from existing content")
     if created or missing:
         log.info("Cold boot: created %d seed paths; fetching their papers from arXiv in the background", len(created))
         spawn(attach_seed_papers())

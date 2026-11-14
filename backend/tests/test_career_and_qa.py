@@ -39,7 +39,7 @@ def llm(fake_llm, monkeypatch):
                 {"name": "Dead", "issuer": "Y", "tier": "developer", "change": "new", "what_changed": "",
                  "focus": "f", "fit": "g", "url": "https://dead.example.com/c"}])
         if schema is career_agent.JobSearchOut:
-            assert "Pune" in prompt and kw["web"] is True
+            assert ("Pune" in prompt or "based in India" in prompt) and kw["web"] is True
             job = lambda t, u, d, s: {"title": t, "company": "Acme", "location": "Pune", "url": u, "posted": d,  # noqa
                                       "summary": "s", "responsibilities": ["r"], "must_have": ["long " + x for x in s],
                                       "skill_tags": s}
@@ -96,3 +96,18 @@ def test_jobs_refresh(client, llm):
     assert [j["title"] for j in d["jobs"]] == ["New", "Old"]
     assert d["top_skills"][0] == {"skill": "MCP", "count": 2}
     assert d["params"]["location"] == "Pune" and d["dropped"] == 1
+
+
+def test_jobs_country(client, llm):
+    from backend.agents.career import job_location
+    assert "Only include postings based in India" in job_location("India", "Bengaluru")
+    assert job_location("Remote") == "remote roles only (any country)"
+    assert job_location("", "") == "any location; include remote roles"
+    client.post("/api/career/jobs/refresh", json={"country": "India", "location": "Bengaluru", "count": 5})
+    d = _wait(client, "/api/career/jobs")
+    assert d["status"] == "ready", d
+    assert d["params"]["country"] == "India" and d["params"]["location"] == "Bengaluru"
+
+
+def test_home_has_no_jobs_card(client):
+    assert "jobs" not in {c["id"] for c in client.get("/api/home/layout").json()}

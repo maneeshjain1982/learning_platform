@@ -128,7 +128,9 @@ class SkillMapper:
             "grouped into 8-12 competency areas (e.g. agent architecture patterns, tools & protocols, frameworks, "
             "memory & retrieval, evaluation & observability, safety & governance, platform & LLMOps, system design, "
             "leadership). Name concrete technologies where interviewers expect them. Mark importance honestly: "
-            "'must' only for things the interview will almost certainly test. Order areas and skills by importance.")
+            "'must' only for things the interview will almost certainly test. If a candidate background is given, "
+            "note in each skill's evidence whether the CV shows it, so gaps stand out. Order areas and skills by "
+            "importance.")
         return await self.llm.ask_json("\n\n".join(parts), SkillMapOut, system=SYSTEM, model=config.LLM_MODEL)
 
 

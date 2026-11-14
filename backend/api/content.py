@@ -89,8 +89,8 @@ def reset(body: Target, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------- items found by the LLM research jobs
 
 # job key -> list field holding the items (each item has a url). Results are per account.
-JOB_LISTS = {"updates": "items", "certs": "items", "jobs": "jobs", "hv-research": "items", "ev-research": "items"}
-ADMIN_JOBS = {"certs", "jobs"}
+JOB_LISTS = {"updates": "items", "certs": "items", "jobs": "jobs", "job-search": "jobs", "hv-research": "items", "ev-research": "items"}
+ADMIN_JOBS = {"certs", "jobs", "job-search"}
 
 
 class JobItemIn(BaseModel):
