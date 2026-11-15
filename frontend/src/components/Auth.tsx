@@ -1,9 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, type Me } from "../api";
 import { Thinking } from "./ui";
 
 const MeCtx = createContext<Me | null>(null);
+
+/** Switch the signed-in account in place. Updates the existing ["me"] query (which <AuthGate> is watching) and
+ * drops every other cached query so one account never sees another's data. Don't use qc.clear() here: it removes
+ * the ["me"] query out from under its observer, so the page wouldn't update until a manual refresh. */
+function setSignedIn(qc: QueryClient, me: Me | null) {
+  qc.setQueryData(["me"], me);
+  qc.cancelQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+}
 
 /** The signed-in account. Only used below <AuthGate>, so it is always set. */
 export function useMe(): Me {
@@ -17,7 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: api.me, retry: false, staleTime: Infinity });
   useEffect(() => {
-    const expired = () => { qc.clear(); qc.setQueryData(["me"], null); };
+    const expired = () => { if (qc.getQueryData(["me"])) setSignedIn(qc, null); };
     window.addEventListener("auth:expired", expired);
     return () => window.removeEventListener("auth:expired", expired);
   }, [qc]);
@@ -32,11 +42,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function Login() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const login = useMutation({
     mutationFn: () => api.login(username.trim(), password),
-    onSuccess: (me) => { qc.clear(); qc.setQueryData(["me"], me); },
+    onSuccess: (me) => {
+      // An admin-only page left open from another account would just show "not allowed": start at Home instead.
+      if (!me.is_admin && pathname.startsWith("/career")) navigate("/", { replace: true });
+      setSignedIn(qc, me);
+    },
   });
   const submit = (e: FormEvent) => { e.preventDefault(); login.mutate(); };
 
@@ -79,8 +95,9 @@ function Login() {
 /** Sign out: ends the session and returns to the sign-in page. */
 export function useSignOut() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   return useMutation({
     mutationFn: api.logout,
-    onSettled: () => { qc.clear(); qc.setQueryData(["me"], null); },
+    onSettled: () => { navigate("/", { replace: true }); setSignedIn(qc, null); },
   });
 }
