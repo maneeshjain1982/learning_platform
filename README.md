@@ -74,7 +74,7 @@ was re-researched. They run once; a domain the admin deletes doesn't come back.
 - **Hot Jobs:** roles, **country** (or Anywhere / Remote only), optional city and how many, then **Refresh**. You get
   open postings from the last 30 days, each with its JD broken down, plus the most-asked skills, which work as a filter.
 - **Job search:**
-  - **Your CV:** upload a PDF, Word file or text, or paste it. It's read on this computer; name, email, phone, address
+  - **Your CV:** in **Career → My CV** (or at the top of Job search), upload a PDF, Word file or text, or paste it. It's read on this computer; name, email, phone, address
     and profile links are removed before the AI sees it, and the file isn't kept. The AI writes a profile (title,
     years, level, domains, skills, roles to search for) that you can edit. **What the AI sees** shows the exact text.
   - **Matching my CV:** jobs that fit your profile, each with a **match score**, **why it fits** and **gaps**, best

@@ -13,12 +13,14 @@ import Home, { BookmarksPage, SearchPage, domainIcon } from "./pages/Home";
 import InterviewPage from "./pages/Interview";
 import { InterviewConfigure, InterviewList } from "./pages/InterviewSetup";
 import Jobs, { JobSearch } from "./pages/Jobs";
+import { MyCV } from "./pages/CVProfile";
 import News from "./pages/News";
 import Settings from "./pages/Settings";
 
 const CAREER = [
+  { to: "/career/cv", label: "My CV", hint: "Upload your CV to match jobs", icon: <Icon.doc size={16} /> },
   { to: "/career/jobs", label: "Hot Jobs", hint: "Top open roles by country", icon: <Icon.star size={16} /> },
-  { to: "/career/search", label: "Job search", hint: "Your search, or jobs for a domain", icon: <Icon.search size={16} /> },
+  { to: "/career/search", label: "Job search", hint: "Jobs matching your CV, or your search", icon: <Icon.search size={16} /> },
   { to: "/career/prep", label: "Interview prep", hint: "Topics and questions from a JD, mock interview", icon: <Icon.brief size={16} /> },
   { to: "/career/faang", label: "FAANG questions", hint: "Publicly reported questions by company", icon: <Icon.chat size={16} /> },
   { to: "/career/certs", label: "Certifications", hint: "AI certifications worth earning", icon: <Icon.cap size={16} /> },
@@ -226,6 +228,7 @@ function SignedInApp() {
             <Route index element={<Navigate to="/career/jobs" replace />} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="search" element={<JobSearch />} />
+            <Route path="cv" element={<MyCV />} />
             <Route path="prep" element={<InterviewList />} />
             <Route path="prep/new" element={<InterviewConfigure />} />
             <Route path="prep/:id" element={<InterviewPage />} />

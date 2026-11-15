@@ -150,3 +150,16 @@ function EditProfile({ p, onClose }: { p: CareerProfile; onClose: () => void }) 
     </Dialog>
   );
 }
+
+/** Career > My CV: upload, view and edit the saved profile. */
+export function MyCV() {
+  return (
+    <main className="w-full max-w-[900px] px-4 sm:px-8 lg:px-10 py-6 lg:py-8 flex flex-col gap-6">
+      <header>
+        <h1 className="h-display text-3xl">My CV</h1>
+        <p className="text-muted mt-1">Upload your CV once. Job search uses it to find jobs that fit you, and Interview prep uses it to show your gaps.</p>
+      </header>
+      <ProfileCard />
+    </main>
+  );
+}
