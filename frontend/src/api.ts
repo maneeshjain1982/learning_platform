@@ -247,6 +247,10 @@ export interface Providers {
   providers: { name: string; label: string; available: boolean; error: string | null; models: string[] }[];
 }
 
+export interface Account {
+  id: number; username: string; name: string; role: "admin" | "user"; is_you: boolean; default_password: boolean;
+  created_at: string | null; last_sign_in: string | null;
+}
 export interface Me { id: number; username: string; name: string; role: "admin" | "user"; is_admin: boolean; default_password: boolean }
 
 // ---------------------------------------------------------------- paper summaries & tech news
@@ -389,6 +393,10 @@ export const api = {
   login: (username: string, password: string) => post<Me>("/api/auth/login", { username, password }),
   logout: () => post<Ok>("/api/auth/logout"),
   changePassword: (current: string, next: string) => post<Me>("/api/auth/password", { current, new: next }),
+  accounts: () => get<Account[]>("/api/accounts"),
+  createAccount: (b: { username: string; name: string; password: string; role: "admin" | "user" }) => post<Account>("/api/accounts", b),
+  updateAccount: (id: number, b: { name?: string; role?: "admin" | "user"; password?: string }) => req<Account>("PATCH", `/api/accounts/${id}`, b),
+  deleteAccount: (id: number) => req<{ ok: boolean }>("DELETE", `/api/accounts/${id}`),
   homeLayout: (cards: { id: string; on: boolean }[]) => req<HomeCard[]>("PUT", "/api/home/layout", cards),
   home: (pathId?: number) => get<Home>(`/api/home${pathId ? `?path_id=${pathId}` : ""}`),
   focus: (lessonId: number) => post<{ text: string }>(`/api/home/focus/${lessonId}`),

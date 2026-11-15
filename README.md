@@ -16,7 +16,12 @@ CLI, so **no API keys** are needed.
 | Admin | `admin` / `admin` | Everything. Adds, edits and deletes domains, topics and links. Has **Career** |
 | User | `user` / `user` | Home, Domains, Tech News and their own bookmarks. Career is hidden and blocked by the server |
 
-Change a password in **Settings**. Domains are shared by both accounts; bookmarks are per account.
+Change a password in **Settings**. Domains are shared by all accounts; bookmarks are per account.
+
+**More accounts:** an admin opens **Settings → Accounts** to create an account (username, display name, password,
+role *User* or *Admin*), change an account's role, reset its password (which signs that account out everywhere) or
+delete it with all its data. A new account starts with its own copy of the starter learning paths. You can't delete
+the account you're signed in with or remove the last admin.
 
 ## Layout
 

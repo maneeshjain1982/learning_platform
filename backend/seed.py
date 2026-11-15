@@ -30,9 +30,9 @@ def ensure_user(db: Session) -> User:
 def seed_structure(db: Session, user_ids: list[int] | None = None) -> list[int]:
     """Create any missing starter paths for each account (all accounts by default). Returns ids of newly
     created paths. No network."""
-    accounts = ensure_accounts(db)
+    ensure_accounts(db)
     created = []
-    for user in accounts:
+    for user in db.scalars(select(User).order_by(User.id)).all():  # built-in and admin-created accounts
         if user_ids is not None and user.id not in user_ids:
             continue
         created += _seed_for(db, user)

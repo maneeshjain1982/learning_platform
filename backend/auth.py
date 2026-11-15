@@ -1,4 +1,4 @@
-"""Sign-in for the two local accounts (admin and user), sessions and the current user.
+"""Sign-in: the two built-in accounts (admin and user) plus any the admin creates, sessions and the current user.
 
 Every /api request (except /api/auth/*) needs a session cookie. The signed-in user's id is kept in a context
 variable, so request handlers and the background tasks they start read it with `uid()`.
@@ -78,11 +78,11 @@ def ensure_accounts(db: Session) -> list[User]:
         if u is None:
             u = User(id=id_, name=name, settings={})
             db.add(u)
-        if not u.username:
+        if not u.username:  # first setup only, so later role changes by the admin are kept
             u.username = username
+            u.role = role
         if not u.password_hash:
             u.password_hash = hash_password(password)
-        u.role = role
         out.append(u)
     db.flush()
     return out

@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from . import auth, career, chat, claude, content, domains, home, interview, lessons, manage, news, papers, paths, search, settings, voice
+from . import accounts, auth, career, chat, claude, content, domains, home, interview, lessons, manage, news, papers, paths, search, settings, voice
 
 router = APIRouter()
-for module in (auth, career, chat, claude, content, domains, home, interview, lessons, manage, news, papers, paths, search,
+for module in (accounts, auth, career, chat, claude, content, domains, home, interview, lessons, manage, news, papers, paths, search,
                settings, voice):
     router.include_router(module.router)
